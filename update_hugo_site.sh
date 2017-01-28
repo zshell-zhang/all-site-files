@@ -1,11 +1,13 @@
 #!/bin/bash
 
 page_name=$1
-now_time=date "+%Y-%m-%d %H:%M:%S"
+now_time=$(date "+%Y-%m-%d %H:%M:%S")
 
 if [[ "$page_name" == "" ]]; then
     page_name="auto update my blog by bash - $now_time"
 fi
+
+echo $page_name
 
 cd /home/zshell/Documents/zshell.zhang.github.io/
 
