@@ -18,8 +18,8 @@ theme = "hugo-icarus-theme"
 [params]
     # Tell me who you are
     author = "zshell.zhang"
-    bio = "java - scala - golang - python"
-    location = "Beijing, China"
+    bio = "java - scala - python - golang"
+    location = "Beijing , China"
     site_description = "我的工作学习收获总结."
     copyright  = "strongly powered by [Hugo](//gohugo.io). theme by [PPOffice](http://github.com/ppoffice)."
     avatar = "css/images/avatar2.jpg"
