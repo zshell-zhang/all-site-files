@@ -6,8 +6,8 @@ description = "JDK1.7+的革命性排序算法改进:TimSort与DualPivotQuickSor
 images = []
 menu = ""
 tags = ["排序算法","JDK"]
-disable_profile = false
-disable_widgets = true
+disable_profile = true
+disable_widgets = false
 
 title = "JDK7+的适应性排序系统"
 date = "2017-01-28T08:36:54-07:00"

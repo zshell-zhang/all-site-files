@@ -2,8 +2,8 @@
 
 date = "2016-07-05T20:40:46+08:00"
 title = "about me"
-disable_profile = false
-disable_widgets = true
+disable_profile = true
+disable_widgets = false
 disable_comments = true
 
 +++
