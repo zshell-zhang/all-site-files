@@ -576,20 +576,38 @@ static class AllPermissionCheck implements BootstrapCheck {
 重新编译后, 使用新处理过的 elasticsearch, 重启节点, 加载插件, 完美启动;
 
 **(2) elasticsearch-analysis-ik** 
-(3) licence 
-(4) marvel-agent (xpack 代替) 
-**(5) repository-hdfs**
+这个插件没的说, 作为唯一一个在 elastic 公司任职的中国人, [medcl](https://github.com/medcl) 一定会在新版本发布第一时间更新 [elasticsearch-analysis-ik](https://github.com/medcl/elasticsearch-analysis-ik), 与公司共进退;
+安装了最新的 6.2.2 版本的 elasticsearch-analysis-ik, 重启节点, 加载插件, 完美运行;
 
-## **性能检测**
-(1) 与 2.4 的对比: index, update, query; 
-(2) query 完全取代 filter; 
-(3) load, gc 是否稳定; 
+**(3) 其余插件**
+在 2.4.2 中, 还有两个使用到的插件, marvel 和 licence; 在 6.x 中, 这些插件已经被 x-pack 取代了, 下一节将会介绍, 此处不再赘述;
 
 ## **监控体系**
-kibana, xpack 的部分免费功能 (待仔细研究); 
-  
-## **新特性研究**
-(1) 类似 binlog 的行为日志, 可用于备份及恢复, 甚至实时同步索引;
+### **基于 rest API + graphite + grafana 的方案**
+基于 elasticsearch 的 rest API, 我们可以使用脚本定时收集到集群内各种状态的指标; 使用 graphite 收集 elasticsearch 汇报的指标, 并以 grafana 作为前端展示; 使用以上开源框架自建的监控系统, 已经成为我们最监控 elasticsearch 集群健康状况的主力工具;
+将收集指标的脚本部署到 elasticsearch 6.x 测试节点, 发现一些 rest API 有了变化:
+``` bash
+# 2.4.2 的 _stats api 可以加一个不痛不痒的 all 参数
+_nodes/stats?all=true
+_stats?all=true
+```
+all 参数在 6.x 中已经不支持了, 不过这是个不痛不痒的参数, 加与不加对结果的输出似没有任何影响;
+其余的 api 都没有什么变化, 测试比较顺利; 
+
+### **elastic 官方组件 x-pack**
+在 x-pack 诞生之前, elastic 官方提供了如下几个辅助工具: kibana, shield, marvel, watcher, 分别用于数据可视化, 权限控制, 性能监控和系统报警; 功能很强大, 可惜除了基础功能外, 进阶功能都要收费;
+从 elasticsearch 5.0 开始, 这些独立的工具被 elastic 公司打成了一个包: x-pack, 同时在原有的基础之上, 又进一步提供了机器学习, 可视化性能诊断 (visual search profiler) 等其他特性, 并以 kibana 为呈现这些功能的载体; 只不过, 收费的功能还是一个都没少:
+![x-pack-fee-table](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/elasticsearch/elasticsearch_6.2_升级调研纪实/x-pack-fee.png)
+对我们来说, 之前我们主要使用到的是 marvel, 用于观察索引分片转移的源目节点与复制进度 (shard activity), 偶尔也会用于辅助自建的监控系统, 观察一些请求的 qps 和 latency;
+我分别在 elasticsearch node 与 kibana 上安装了 x-pack 套件, 剔除了需要付费的 security, watcher, ml, graph 模块;
+可以看到, monitoring 部分相比以前的 marvel, 总体结构上没有太大变化:
+![x-pack-monitor](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/elasticsearch/elasticsearch_6.2_升级调研纪实/x-pack-monitor.png)
+另外, 在 x-pack 免费的功能里, 还有一个比较实用的工具: dev-tools; 这里面有两个子栏目: search profiler 和 grok debugger; 其中, search profiler 在之前的 search api 基础上实现了可视化的诊断, 相比之前在 response json 里面分析查询性能瓶颈, 这样的工具带来了巨大的直观性:
+![x-pack-search-profiler](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/elasticsearch/elasticsearch_6.2_升级调研纪实/x-pack-search-profiler.png)
+除了以上免费功能, kibana 本身还有最基础的 Discover 和 Visualize 数据可视化功能, 只不过各业务线都习惯于使用 head 工具来访问线上数据, 并且 kibana 的该部分功能较之以前无显著变化, 此处便不再详述;
+以上便是 elasticsearch 6.x 下 x-pack 最常见的使用情况;
+
+## **本文总结**
 
 ## **参考链接**
 - [Changelog](https://github.com/elastic/elasticsearch-dsl-py/blob/master/Changelog.rst)
@@ -599,6 +617,9 @@ kibana, xpack 的部分免费功能 (待仔细研究);
 - [State of the official Elasticsearch Java clients](https://www.elastic.co/blog/state-of-the-official-elasticsearch-java-clients)
 - [Elasticsearch 6 新特性与重要变更解读](http://blog.csdn.net/napoay/article/details/79135136)
 - [Help for plugin authors](https://www.elastic.co/guide/en/elasticsearch/plugins/6.2/plugin-authors.html#_java_security_permissions)
-- [Intellij Idea编译Elasticsearch源码](https://elasticsearch.cn/article/338)
+- [Intellij Idea 编译 Elasticsearch 源码](https://elasticsearch.cn/article/338)
 - [elasticsearch: Building from Source](https://github.com/elastic/elasticsearch#building-from-source)
+- [Sequence IDs: Coming Soon to an Elasticsearch Cluster Near You](https://www.elastic.co/blog/elasticsearch-sequence-ids-6-0)
+- [Kibana+X-Pack](https://www.cnblogs.com/Leo_wl/p/6181563.html)
+- [Subscriptions that Go to Work for You](https://www.elastic.co/subscriptions)
 
