@@ -5,6 +5,7 @@ tags:
   - linux:shell
 categories:
   - linux
+  - shell
 ---
 
 > 本文基于 GNU bash, version 4.1.2(1)-release (x86_64-redhat-linux-gnu)

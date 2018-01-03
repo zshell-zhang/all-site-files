@@ -5,6 +5,7 @@ tags:
   - linux:shell
 categories:
   - linux
+  - shell
 ---
 
 > linux 中有很多实用的工具, 采用了这样一种工作方式:
