@@ -80,3 +80,10 @@ deploy:
   type: git
   repo: git@github.com:zshell-zhang/zshell-zhang.github.io.git
   branch: master
+
+algolia:
+  applicationID: ZMIXW3930D
+  apiKey: c49c36c7c844f33b8192006e785dd70d
+  indexName: my_github_page_blog
+  chunkSize: 5000
+

@@ -84,12 +84,13 @@ index_with_subtitle: false
 # Value before `||` delimeter is the target link.
 # Value after `||` delimeter is the name of FontAwesome icon. If icon (with or without delimeter) is not specified, question icon will be loaded.
 menu:
-  home: /
-  categories: /categories/
-  tags: /tags/
-  archives: /archives/
-  about: /about/
-  #schedule: /schedule/ || calendar
+  home: / || home
+  categories: /categories/ || th
+  tags: /tags/ || tags
+  archives: /archives/ || archive
+  about: /about || user
+  #search: /search || search
+ #schedule: /schedule/ || calendar
   #sitemap: /sitemap.xml || sitemap
   #commonweal: /404/ || heartbeat
 
@@ -107,10 +108,10 @@ menu_icons:
 # ---------------------------------------------------------------
 
 # Schemes
-scheme: Muse
+#scheme: Muse
 #scheme: Mist
 #scheme: Pisces
-#scheme: Gemini
+scheme: Gemini
 
 
 # ---------------------------------------------------------------
@@ -123,8 +124,8 @@ scheme: Muse
 # Value before `||` delimeter is the target permalink.
 # Value after `||` delimeter is the name of FontAwesome icon. If icon (with or without delimeter) is not specified, globe icon will be loaded.
 social:
-  GitHub: https://github.com/zhangzhi1993-2025
-  E-Mail: mailto:xaaservice@gmail.com
+  GitHub: https://github.com/zhangzhi1993-2025 || github
+  E-Mail: mailto:xaaservice@gmail.com || paper-plane
   #Google: https://plus.google.com/yourname || google
   #Twitter: https://twitter.com/yourname || twitter
   #FB Page: https://www.facebook.com/yourname || facebook
@@ -138,6 +139,8 @@ social_icons:
   enable: true
   icons_only: false
   transition: false
+  GitHub: github
+  E-Mail: paper-plane
 
 # Blog rolls
 links_icon: link
@@ -170,16 +173,16 @@ toc:
 
 sidebar:
   # Sidebar Position, available value: left | right (only for Pisces | Gemini).
-  #position: left
-  position: right
+  position: left
+  #position: right
 
   # Sidebar Display, available value (only for Muse | Mist):
   #  - post    expand on posts automatically. Default.
   #  - always  expand for all pages automatically
   #  - hide    expand only when click on the sidebar toggle icon.
   #  - remove  Totally remove sidebar including sidebar toggle.
-  display: post
-  #display: always
+  #display: post
+  display: always
   #display: hide
   #display: remove
 
@@ -589,7 +592,7 @@ calendar:
 
 # Algolia Search
 algolia_search:
-  enable: false
+  enable: true
   hits:
     per_page: 10
   labels:
