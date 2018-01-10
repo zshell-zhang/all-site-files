@@ -53,6 +53,11 @@ function gen_tag() {
 
 cd ~/Documents/blogs
 
+if [[ -e source/_posts/${title}.md ]]; then
+    echo -e "the target post exists, exit!"
+    exit 0
+fi
+
 hexo new post tmp-post
 
 mv source/_posts/tmp-post.md source/_posts/${title}.md
@@ -61,7 +66,7 @@ echo -e "new post name is: source/_posts/${title}.md"
 gen_categories ${title}
 gen_tag ${title}
 
-origin_blog_content="---\ntitle: ${real_title}\ndate: `date +%Y-%m-%d\ %H:%M:%S`\ncategories:\n${final_categories}tags:\n${final_tag}\n---"
+origin_blog_content="---\ntitle: ${real_title}\ndate: `date +%Y-%m-%d\ %H:%M:%S`\ncategories:\n${final_categories}tags:\n${final_tag}\n---\n<!--more-->"
 
 echo -e ${origin_blog_content} > source/_posts/${title}.md
 echo -e "initialization process done, now you can edit it!"
