@@ -54,7 +54,8 @@ function gen_tag() {
 cd ~/Documents/blogs
 
 if [[ -e source/_posts/${title}.md ]]; then
-    echo -e "the target post exists, exit!"
+    echo -e "the target post exists, edit it directly!"
+    vim source/_posts/${title}.md
     exit 0
 fi
 
