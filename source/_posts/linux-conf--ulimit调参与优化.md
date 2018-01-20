@@ -64,7 +64,7 @@ linux 默认的 ulimit 限制, 是出于安全考虑, 设置的有些保守; 实
 ``` bash
 4. max user processes -> 65535
 ```
-具体的情况可以参见这篇文章: [dubbo 服务治理框架设计]();
+具体的情况可以参见这篇文章: [dubbo 服务治理系统设计]();
 
 ### **场景2: elasticsearch data node**
 32C64G4T 的配置, 为确保指针压缩特性被打开, 一般我们都会控制 jvm 的最大堆内存与最小堆内存: '-Xmx30g -Xms30g', 并希望能锁住所有的内存, 避免堆内存被 swap 到磁盘, 降低了搜索性能; 这种场景下我们当然不希望 ulimit 限制了 max memory size 以及 max locked memory;
@@ -177,6 +177,10 @@ root       soft    nproc     unlimited
 而要想将该值默认放到 65535, 就必须修改 `20-nproc.conf` 文件方才生效;
 
 ### **永久修改生效的必要条件**
+
+## **站内相关文章**
+- [pam 认证与配置]()
+- [dubbo 服务治理系统设计]()
 
 ## **参考链接**
 - [ulimit 命令详解](http://www.cnblogs.com/zengkefu/p/5649407.html)

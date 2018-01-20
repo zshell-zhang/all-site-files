@@ -8,7 +8,7 @@ tags:
  - mvn:plugins
 ---
 
-> 本文在 Apache Maven 的官方文档上, 结合自己的一些项目经历: [在 Apache Spark 中使用 springframework 的一次总结](), 总结了一些 assembly 插件的使用方式和一些注意事项, 以作备忘;
+> 本文在 Apache Maven 的官方文档上, 结合自己的一些项目经历: [在 Apache Spark 中使用 springframework 的一次实践](), 总结了一些 assembly 插件的使用方式和一些注意事项, 以作备忘;
 另外, 由于 assembly 的 核心配置文件中可配置项种类繁多, 为了体现直观性, 文本直接在一段 '丰富而典型' 的配置文件 case 上, 以注释的形式作为每个配置项的释义;
 
 <!--more-->
@@ -137,8 +137,9 @@ tags:
 &nbsp;
 ### **使用 assembly 的一些注意事项**
 * 使用 assembly 打包成需要独立运行的 jar 时, 若无特殊需要显式定义 CLASSPATH,  则在核心配置文件中不应该定义 `baseDirectory`, 并将 `includeBaseDirectory` 置为 `false`;
-因为 assembly 生成的 jar 包在 `/META-INF/MANIFEST.MF` 文件中默认不会定义 `Class-Path`, 即 CLASSPATH 默认就是 jar 中的基目录;  
-```
+因为 assembly 生成的 jar 包在 `/META-INF/MANIFEST.MF` 文件中默认不会定义 `Class-Path`, 即 CLASSPATH 默认就是 jar 中的基目录;
+
+``` bash
 # assembly 生成的 /META-INF/MANIFEST.MF
 Manifest-Version: 1.0
 Archiver-Version: Plexus Archiver
@@ -152,11 +153,15 @@ assembly 只把第一次遇到的同名文件加入目标打包文件, 其后遇
 &nbsp;
 ### **关于 assembly 命令**
 除了上述以 配置文件 + maven core phase 回调的形式使用 assembly 插件之外, assembly 插件的 goals 也可以命令的形式执行:
-```
+``` bash
 mvn clean assembly:single
 mvn assembly:help
 ```
 由于使用 assembly 命令的场景不多见, 此处不再详述, 详见 maven 官方介绍: [assembly:single](http://maven.apache.org/plugins/maven-assembly-plugin/single-mojo.html)
+
+&nbsp;
+### **站内相关文章**
+- [在 Apache Spark 中使用 springframework 的一次实践]()
 
 &nbsp;
 ### **参考链接**

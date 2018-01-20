@@ -26,21 +26,25 @@ linux siginal 可分为如下几大类:
 7. 其他信号
 
 &nbsp;
+linux signals 的产生源一般分为三类: 硬件方式(除数为 0, 内存非法访问等), IO 方式(键盘事件), 以及软件方式: kill 命令, alarm 定时器等;
+其中我们最熟悉的莫不过 kill 命令了, 详情请见: [kill 命令族及其选项]();
+
+&nbsp;
 使用 kill -l 查看所有信号分布:
 ``` bash
 > kill -l
- 1) SIGHUP	     2) SIGINT	     3) SIGQUIT	     4) SIGILL	     5) SIGTRAP
- 6) SIGABRT	     7) SIGBUS	     8) SIGFPE	     9) SIGKILL	    10) SIGUSR1
-11) SIGSEGV	    12) SIGUSR2	    13) SIGPIPE	    14) SIGALRM	    15) SIGTERM
-16) SIGSTKFLT	    17) SIGCHLD	    18) SIGCONT	    19) SIGSTOP	    20) SIGTSTP
-21) SIGTTIN	    22) SIGTTOU	    23) SIGURG	    24) SIGXCPU	    25) SIGXFSZ
-26) SIGVTALRM	    27) SIGPROF	    28) SIGWINCH    29) SIGIO	    30) SIGPWR
-31) SIGSYS	    34) SIGRTMIN    35) SIGRTMIN+1  36) SIGRTMIN+2  37) SIGRTMIN+3
-38) SIGRTMIN+4	    39) SIGRTMIN+5  40) SIGRTMIN+6  41) SIGRTMIN+7  42) SIGRTMIN+8
-43) SIGRTMIN+9	    44) SIGRTMIN+10 45) SIGRTMIN+11 46) SIGRTMIN+12 47) SIGRTMIN+13
-48) SIGRTMIN+14	    49) SIGRTMIN+15 50) SIGRTMAX-14 51) SIGRTMAX-13 52) SIGRTMAX-12
-53) SIGRTMAX-11	    54) SIGRTMAX-10 55) SIGRTMAX-9  56) SIGRTMAX-8  57) SIGRTMAX-7
-58) SIGRTMAX-6	    59) SIGRTMAX-5  60) SIGRTMAX-4  61) SIGRTMAX-3  62) SIGRTMAX-2
+ 1) SIGHUP	     2) SIGINT	    	 3) SIGQUIT	     4) SIGILL	    	 5) SIGTRAP
+ 6) SIGABRT	     7) SIGBUS	    	 8) SIGFPE	     9) SIGKILL	    	10) SIGUSR1
+11) SIGSEGV	    12) SIGUSR2	    	13) SIGPIPE	    14) SIGALRM	    	15) SIGTERM
+16) SIGSTKFLT	    17) SIGCHLD	    	18) SIGCONT	    19) SIGSTOP	    	20) SIGTSTP
+21) SIGTTIN	    22) SIGTTOU	    	23) SIGURG	    24) SIGXCPU	    	25) SIGXFSZ
+26) SIGVTALRM	    27) SIGPROF	    	28) SIGWINCH        29) SIGIO	    	30) SIGPWR
+31) SIGSYS	    34) SIGRTMIN    	35) SIGRTMIN+1      36) SIGRTMIN+2  	37) SIGRTMIN+3
+38) SIGRTMIN+4	    39) SIGRTMIN+5  	40) SIGRTMIN+6      41) SIGRTMIN+7  	42) SIGRTMIN+8
+43) SIGRTMIN+9	    44) SIGRTMIN+10 	45) SIGRTMIN+11     46) SIGRTMIN+12 	47) SIGRTMIN+13
+48) SIGRTMIN+14	    49) SIGRTMIN+15 	50) SIGRTMAX-14     51) SIGRTMAX-13 	52) SIGRTMAX-12
+53) SIGRTMAX-11	    54) SIGRTMAX-10 	55) SIGRTMAX-9      56) SIGRTMAX-8  	57) SIGRTMAX-7
+58) SIGRTMAX-6	    59) SIGRTMAX-5  	60) SIGRTMAX-4      61) SIGRTMAX-3  	62) SIGRTMAX-2
 63) SIGRTMAX-1	    64) SIGRTMAX
 ```
 
@@ -89,6 +93,14 @@ kill -s SIGUSR2 `cat /var/run/nginx.pid`
 # 通知 nginx worker process 不再接受新 request, 并从容关闭
 kill -WINCH `cat /var/run/nginx.pid`
 ```
+当然, 通知 worker process 不再接受新请求, nginx 并不需要使用者直接在 linux signals 层面直接处理, nginx 本身提供了平滑重启命令 `sbin/nginx -c conf/nginx.conf -s reload`, SIGWINCH 信号的发送封装在了该命令里;
+&nbsp;
+关于 nginx 与 linux signals 的关系, 在本站另一篇文章中有详细介绍: [nginx signals 处理]();
+
+## **站内相关文章**
+- [kill 命令族及其选项]()
+- [SIGHUP 相关全梳理]()
+- [nginx signals 处理]()
 
 ## **参考链接**
 - [24.2.2 Termination Signals](http://www.gnu.org/software/libc/manual/html_node/Termination-Signals.html#Termination-Signals)

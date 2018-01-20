@@ -140,6 +140,10 @@ sudo kill `sudo lsof -t -u zshell.zhang` # 杀死所有 zshell.zhang 的用户�
 ```
 另外, lsof 还可以被运用于找出系统中的幽灵文件, 详见: [du / df 使用及其区别](https://zshell-zhang.github.io/2017/04/07/linux-other--du,df使用及其区别/);
 
+## **站内相关文章**
+- [netstat/ss 使用对比]()
+- [du / df 使用及其区别](https://zshell-zhang.github.io/2017/04/07/linux-other--du,df使用及其区别/)
+
 ## **参考链接**
 - [linux lsof详解](http://blog.csdn.net/guoguo1980/article/details/2324454)
 - [每天一个Linux命令（45）lsof命令](http://www.cnblogs.com/MenAngel/p/5575479.html)
