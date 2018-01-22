@@ -75,7 +75,8 @@ linux 默认的 ulimit 限制, 是出于安全考虑, 设置的有些保守; 实
 3. open files -> 65536
 4. stack size -> unlimit
 ```
-当然, 对于 max locked memory, elasticsearch.yml 本身有一个配置项 bootstrap.mlockall/bootstrap.memory_lock, 其背后实现就是通过类似于 ulimit -l unlimit 的方法完成的;
+对于 max locked memory, elasticsearch.yml 本身有一个配置项 `bootstrap.mlockall`/`bootstrap.memory_lock` = true, 其背后实现就是通过类似于 ulimit -l unlimit 的方法完成的; 只是, elasticsearch 试图自己主动改变该配置能生效的前提, 是 ulimit 配置文件里要允许其这样设置, 具体的逻辑请看本文下下节: [ulimit 的永久修改](#ulimit-的永久修改);
+
 &nbsp;
 另外, 还有其他的一些场景, 可能需要调整其他参数以作优化, 此处不一而论;
 以上是需要调整 ulimit 参数的场景举例, 下面的内容是关于如何 临时/永久 修改 ulimit 设置;
@@ -83,7 +84,7 @@ linux 默认的 ulimit 限制, 是出于安全考虑, 设置的有些保守; 实
 ## **ulimit 当前 session 下的临时修改**
 ulimit 的临时调整, 只对当前 session 下的当前用户, 以及当前用户所起的进程生效;
 其调整方法也已经在 `ulimit -a` 中被注明了:
-```
+``` bash
 # max locked mem
 ulimit -l unlimit
 # max mem size
@@ -147,6 +148,8 @@ value   限制的具体值;
 elastic           -         memlock     unlimit
 @dev              hard      fsize       10737418240
 ```
+如上所示, 系统允许 elastic 用户的最大 memlock 为 unlimit, 如果这个值被设置为了一个比较小的值, 那么上上节 elasticsearch 试图将其改成 unlimit 便会失败;
+
 &nbsp;
 而对于 `/etc/security/limits.d` 目录的作用,  `/etc/security/limits.conf` 文件中的第二段与第三段有如下注释:
 

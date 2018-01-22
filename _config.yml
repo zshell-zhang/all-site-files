@@ -4,10 +4,10 @@
 
 # Site
 title: 希尔的博客
-subtitle:
-description: "A股是我生平所见最刺激的网络游戏"
+subtitle: 兰之猗猗，扬扬其香。不采而佩，于兰何伤？
+description:
 author: zshell.zhang
-language: zh-Hans
+language: zh-CN
 timezone:
 
 # URL
@@ -72,7 +72,7 @@ pagination_dir: page
 # Extensions
 ## Plugins: https://hexo.io/plugins/
 ## Themes: https://hexo.io/themes/
-theme: next
+theme: indigo
 
 # Deployment
 ## Docs: https://hexo.io/docs/deployment.html

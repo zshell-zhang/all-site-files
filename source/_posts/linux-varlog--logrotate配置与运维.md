@@ -194,14 +194,14 @@ test -x /usr/sbin/logrotate || exit 0
 /usr/sbin/logrotate /etc/logrotate.conf
 ```
 如本文第二节所述, 由于 logrotate 的执行方式是通过 cron 默认 1 天执行一次, 所以按小时 rotate 的 `hourly` 配置项, 默认是不生效的; logrotate 的 manual 文档里也有说明:
-> `hourly`: Log files are rotated every hour. Note that usually logrotate is configured to be run by cron daily. You have to change this configuration and run logrotate hourly to be able to really rotate logs hourly.
+> `hourly` Log files are rotated every hour. Note that usually logrotate is configured to be run by cron daily. You have to change this configuration and run logrotate hourly to be able to really rotate logs hourly.
 
 不过, 这还不是最大的问题, 毕竟我们只要把上述脚本放到 `cron.hourly` 里, 就能解决该问题;
-这种靠定时任务来运行的方式, 最大的问题是: 当我们对某个日志配置成按 `size` 来 rotate 时, 无法做到当日志触达 size 条件时及时切分, 其所能实现的最小延时是一分钟 (当把 logrotate 脚本的定时任务配成 * * * * *, 即每分钟执行一次时), 没法更短了;
+这种靠定时任务来运行的方式, 最大的问题是: 当我们对某个日志配置成按 `size` 来 rotate 时, 无法做到当日志触达 size 条件时及时切分, 其所能实现的最小延时是一分钟 (当把 logrotate 脚本的定时任务配成 \* \* \* \* \*, 即每分钟执行一次时), 没法更短了;
 
 ### **其他的特殊场景**
 logrotate 集日志切分, 日志压缩, 删除旧日志, 邮件提醒等功能为一体, 提供了非常完整的日志管理策略; 不过, 并不是所有的系统日志, 自身都不具有上述功能, 都需要依赖 logrotate 来管理自己;
-有一个非常典型, 而且使用十分广泛的场景: tomcat web 服务器; 当我们在 tomcat 上部署的服务使用了诸如 logback 之类的第三方日志框架时, 日志切分, 日志压缩等服务它自己便能够胜任了 (与 logback 相关功能的文章请见: [logback appender 使用总结]()), 而且我们绝大部分人, 即便不怎么接触 logback 的日志压缩功能, 也至少都习惯于使用 logback  `RollingFileAppender` 的基础功能去作日志切分;
+有一个非常典型, 而且使用十分广泛的场景: tomcat web 服务器; 当我们在 tomcat 上部署的服务使用了诸如 logback 之类的第三方日志框架时, 日志切分, 日志压缩等服务它自己便能够胜任了 (与 logback 相关功能的文章请见: [logback appender 使用总结]()), 而且我们绝大部分人 (去哪儿网), 即便不怎么接触 logback 的日志压缩功能, 也至少都习惯于使用 logback  `RollingFileAppender` 的基础功能去作日志切分;
 基于以上, 我们只需要一个简单的脚本, 便能够满足日常的 tomcat web 服务器日志运维:
 ``` bash
 #!/bin/bash
@@ -213,7 +213,7 @@ for i in `find /home/web/ -maxdepth 2 \( -type d -o -type l \) -name logs`; do
         find -L $i -maxdepth 1 -type f \( -name "*${DATE7}*" -a -name "*.gz" \) -exec rm -f {} \;
 done
 ```
-本节内容讨论的是针对 tomcat web 系统上的日志切分, 压缩, 以及删除等常规运维内容; 其实, 针对公司各业务线 web 系统的业务日志, 除此之外至少还有另外两项重要的运维内容: 日志冷备份收集 与 日志实时可视化收集 (ELK); 与之相关的内容请参见如下文章:
+本节内容讨论的是针对 tomcat web 系统上的日志切分, 压缩, 以及删除等常规运维内容; 其实, 针对公司各业务线 web 系统的业务日志, 除此之外至少还有另外两项重要的运维内容: *日志冷备份收集* 与 *日志实时收集及其可视化 (ELK)*; 与之相关的内容请参见如下文章: 
 
 1. [改造 flume-ng: 融入公司的技术体系]();
 2. [日志冷备份收集的方案选型]();

@@ -1,5 +1,5 @@
 ---
-title: r<!---->syncd 配置与运维
+title: rsyncd 配置与运维
 date: 2017-10-14 23:20:21
 tags:
   - rsync
