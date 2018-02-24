@@ -25,9 +25,8 @@ tags:
 # first step
 git rm --cached file_path/
 # second step
-update .gitignore to exclude target file
+更新 .gitignore 文件, exclude 目标文件
 ```
-&nbsp;
 ### **临时忽略已被跟踪的文件**
 适用场景:
 目标文件庞大, 每次修改保存时, git 计算文件的变化并更新 working directory, 触发磁盘IO瓶颈;
@@ -35,11 +34,11 @@ update .gitignore to exclude target file
 ``` bash
 # first step
 git update-index --assume-unchanged file_path/
-# 编辑文件...
-# seconde step
+# second step
+编辑文件...
+# third step
 git update-index --no-assume-unchanged file_path/
 ```
-&nbsp;
 ### **参考链接**
 - [git忽略已经被提交的文件](https://segmentfault.com/q/1010000000430426)
 
