@@ -12,7 +12,8 @@ tags:
 <!--more-->
 
 ------
-## **client 兼容性问题**
+
+## **客户端兼容性问题**
 ### **升级过渡期 client 端的技术选型**
 关于 elasticsearch java 官方客户端, 除了 TransportClient 之外, 最近又新出了一个 HighLevelClient, 而且官方准备在接下来的一两个 major 版本中, 让 HighLevelClient 逐步取代 TransportClient, 官方原话是这样描述的:
 > We plan on deprecating the `TransportClient` in Elasticsearch 7.0 and removing it completely in 8.0.
@@ -45,8 +46,10 @@ tags:
 但这还是架不住各业务线种种小众的需求(比如 nested_filter, function_score 等等), 以致于对两个不同版本的集群, es-adapter 不能完美提供一致的功能;
 这一次升 6.2.2, 又遇到了和上一次差不多的问题, 不过一个很大的不同是: 现在官方推荐的 HighLevelClient 是 rest client, 所以很有必要尝试验证下其向下兼容的能力;
 我们经过 demo 快速测试验证, 初步得出了结论:
+&nbsp;
 **6.2.2 版本的 RestHighLevelClient 可以兼容 2.4.2 版本的 elasticsearch;**
-这也体现了 elasticsearch 官方要逐步放弃 TransportClient 并推荐 HighLevelClient 的原因: 基于 http 屏蔽底层差异, 最大限度地提升 client 端的兼容性;
+&nbsp;
+这也体现了 elasticsearch 官方要逐步放弃 TransportClient 并推荐 HighLevelClient 的原因: 基于 http 屏蔽底层差异, 最大限度地提升 client 端的兼容性; 后来我在其官方文档中也看到了相关的观点: [Compatibility](https://www.elastic.co/guide/en/elasticsearch/client/java-rest/6.2/java-rest-high-compatibility.html);
 所以, 本次升级过渡期就不需要像上次 1.7.3 升 2.4.2 那么繁琐, 还要再引入一个第三方的 rest client; 现在唯一需要做的就是直接把 client 升级到 6.2.2, 使用 HighLevelClient 同时访问 2.4.2 和 6.2.2 两个版本;
 
 ### **HighLevelClient 的使用注意事项**
@@ -61,21 +64,20 @@ HighLevelClient 底层基于 apache httpcomponents, 一提起这个老牌 http c
 
 不过, HighLevelClient 关于这几个参数的设置有些绕人, 它是通过如下两个回调实现的:
 ``` java
-List<HttpHost> httpHosts = Lists.newArrayList();
+List<HttpHost> httpHosts = Lists.newArrayListWithExpectedSize(serverNum);
 serverAddressList.forEach((server) -> httpHosts.add(new HttpHost(server.getAddr(), server.getPort(), "http")));
-private RestHighLevelClient highLevelClient = new RestHighLevelClient(
-        RestClient.builder(httpHosts.toArray(new HttpHost[0]))
-                // timeout settings
-                .setRequestConfigCallback((callback) -> callback
-                        .setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
-                        .setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
-                        .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT_MILLIS))
-                // connections total and connections per host
-                .setHttpClientConfigCallback((callback) -> callback
-                        .setMaxConnPerRoute(MAX_CONN_PER_ROUTE)
-                        .setMaxConnTotal(MAX_CONN_TOTAL)
-                )
-        );
+private RestHighLevelClient highLevelClient = new RestHighLevelClient(RestClient.builder(httpHosts.toArray(new HttpHost[0]))
+        // timeout settings
+        .setRequestConfigCallback((callback) -> callback
+                .setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
+                .setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
+                .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT_MILLIS))
+        // connections total and connections per host
+        .setHttpClientConfigCallback((callback) -> callback
+                .setMaxConnPerRoute(MAX_CONN_PER_ROUTE)
+                .setMaxConnTotal(MAX_CONN_TOTAL)
+        )
+);
 ```
 
 **(2) request timeout 的设置**
@@ -120,7 +122,35 @@ if (wrapper.getResponse() == null) { // 异常处理 }
 else { 处理 wrapper.getResponse() 的返回结果 }
 ```
 
-## **基础兼容性问题**
+**(3) query 请求 dsl 的传参问题**
+es-adapter 之前查询相关的请求动作, 对业务线提供的接口是基于 Search API 设计的, 就是下面这样的模型:
+``` javascript
+{
+    "query": { ... },
+    "_source": {
+        "include": [ ... ],
+        "exclude": [ ... ]
+    },
+    "from": xxx,
+    "size": yyy,
+    "sort": [ ... ],
+    "aggs": { ... }
+}
+```
+业务线需要提供以上参数给 es-adapter, 而这里面最重要的就是第一个 query 参数, 这里原先设计的是传一个 dsl 字符串; 但是现在我发现 HighLevelClient 的 SearchSourceBuilder 不能直接 set 一个字符串, 而必须是使用各种 QueryBuilder 去构造对应的 Query 对象; 
+这个问题就比较严重了, 如果要改就是牵涉到所有的业务线; 而且即便是想改, 也没那么简单: 这些 QueryBuilders 都没有实现 Serializable 接口, 根本没法被 dubbo 序列化;
+权衡之下, 感觉还是要努力想办法把 dsl 字符串 set 进去; 我看到 SearchSourceBuilder 有一个方法是 fromXContent(XContentParser parser), 考虑到 dsl 字符串其实都是 json, 可以使用 JsonXContent 将 dsl 反序列化成各种 QueryBuilders; 摸索了一阵子, 验证了以下代码是可行的:
+``` java
+String dslStr = "...";
+SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(
+        new NamedXContentRegistry(searchModule.getNamedXContents()), dslStr);
+
+SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+```
+HighLevelClient 的使用基本上要解决的就是以上几个问题了;
+
+## **语法兼容性问题**
 ### **索引创建的兼容性**
 es 6.2 在索引创建方面, 有如下几点与 es 2.4 有区别:
 &nbsp;
@@ -347,7 +377,7 @@ GET /_search
 
 **(3) search_type query_and_fetch / dfs_query_and_fetch 被废弃**
 
-### **底层索引数据的兼容性**
+## **底层索引数据兼容性问题**
 根据官方文档, 6.x 版本可以兼容访问 5.x 创建的索引; 5.x 版本可以兼容 2.x 创建的索引;
 背后其实是 Lucene 版本的兼容性问题, 目前我们 2.4.2 版本的集群使用的 Lucene 版本是 5.5.2, 而 6.2.2 版本的 elasticsearch 使用的 Lucene 版本是 7.2.1;
 
@@ -385,18 +415,170 @@ POST _reindex
 ### **http 访问工具兼容性**
 目前我们经常使用的基于 http 的访问工具主要是 elasticsearch-head 和 cerebro;
 关于 http 请求, elasticsearch 6.2.2 也有一个重大的改变: [Strict Content-Type Checking for Elasticsearch REST Requests](https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests);
-现在所有带 body 的请求都必须要加上 `content-type` 头, 否则会被拒绝; 我们目前正在使用的 elasticsearch-head:2 和 cerebro v0.6.1 肯定是不支持这点的, head 是所有针对数据的 CRUD 请求使用不了, cerebro 甚至连接机器都会失败;
+现在所有带 body 的请求都必须要加上 `Content-Type` 头, 否则会被拒绝; 我们目前正在使用的 elasticsearch-head:2 和 cerebro v0.6.1 肯定是不支持这点的, head 是所有针对数据的 CRUD 请求使用不了, cerebro 甚至连接机器都会失败;
+&nbsp;
 目前, cerebro 在 github 上已经发布了最新支持 elasticsearch 6.x 的 docker 版本: [yannart/docker-cerebro](https://github.com/yannart/docker-cerebro); 经过部署测试, 完全兼容 elasticsearch 6.2.2;
 不过, elasticsearch-head 就没那么积极了, 目前最近的一次 commit 发生在半年之前, 那个时候 elasticsearch 的最新版本还是 v 5.5;
+&nbsp;
+没有 elasticsearch-head 肯定是不行的, 这个时候就只能自己动手了;
+首先, 肯定是希望从源码入手, 看能不能改一改, 毕竟只是加一个 `Content-Type`, 并不需要动大手术; 只可惜, 我 clone 下了 elasticsearch-head 的源码, 发现这个纯 javascript 的工程, 复杂度远远超出我的想象, 早已不是一个非前端工程师所能驾驭的了的; 我全局搜索了一些疑似 post 请求的逻辑, 但终究也没把握这些是不是真正要改的地方; 思来忖去, 只得作罢;
+然后, 我开始思考能否通过间接的方式解决问题; 我注意到一个现象, 凡是带 body 的请求, body 必定是一个 json, 无论是 POST 还是 PUT; 那就是说, 如果必须要指定 `Content-Type` 的时候, 那就指定为 `application/json` 就 OK 了; 与此同时, 如果是一个不带 body 的 GET 请求, 携带上该 header 理论上也不会造成额外影响;
+如果这个假设成立, 那我只需要对所有 elasticsearch-head 发起的请求挂一层代理, 全部转到 nginx 上去, 并统一加上个 header:
+``` bash
+server {
+   listen 80;
+   server_name esbetae.corp.11bee.com;
+
+   location / {
+      proxy_pass http://l-es5.beta.p1.11bee.com:9273/;
+
+      proxy_set_header X-Real-Scheme $scheme;
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      # 统一加上 application/json 的 Content-Type
+      proxy_set_header Content-Type application/json;
+   }
+}
+```
+测试环境下的实验验证了这个方案是完全可行的, 原本正常访问的请求以及原本不能正常访问的请求, 现在都没有任何问题了;
+其实, 这个方案相比之前还是有自己的好处的: 它隐藏了真正的 elasticsearch 节点地址与端口号, 只对业务线暴露了一个代理 url, 从而更加灵活与可控;
 
 ### **插件兼容性**
-目前生产环境中正在使用的插件是否在 es6 生态下继续兼容: 
-    (1) elasticfence (源代码已被我深度改造, 可以基于 es6.2 的 api 再重新改一下, 官方支不支持都没关系) 
-    (2) elasticsearch-analysis-ik 
-    (3) licence 
-    (4) marvel-agent (xpack 代替) 
-    (5) repository-hdfs 
-    (6) taskscore (曹飞写的, 需要他用 es6.2 的 api 重新改一下)
+笼统上讲, cerebro 与 elasticsearch-head 也是插件, 只不过它们是独立部署的, 所以被划归到 http 访问工具的类别中了; 而这一小节要讲的, 则是真正的需要依赖于具体的 elasticsearch 节点的插件;
+**(1) elasticfence**
+这个插件追踪溯源的话是这个项目: [elasticfence](https://github.com/elasticfence/elasticsearch-http-user-auth); 后来由于各种各样的需求, 我们在这个插件的基础之上, 作了大量的修改; 到目前为止, 跑在我们节点上的该插件代码已经与 github 上的原项目代码没有半毛钱关系了;
+当前我们版本的 elasticfence 最大的功能是整合了 qconfig, 使得其拥有热配置及时生效的能力; 然而, 也正是这个功能, 成了该插件本次兼容 elasticsearch 6.x 的噩梦;
+首先第一道困难是, 2.4 与 6.2 版本的插件 API 彻底大改变; 但这与接下来的困难相比, 也只不过是热个身而已;
+当我把 pom.xml 中的 elasticsearch 版本从 2.4.2 改成 6.2.2 时, 意料之中地发现代码红了一片, 不过仔细一看, 发现 API 变化的尺度之大, 还是超出了我的预计: RestFilter 接口直接被干掉了;
+``` java
+/**
+ * A filter allowing to filter rest operations.
+ */
+public abstract class RestFilter implements Closeable {
+    public int order() {return 0;}
+    @Override
+    public void close() {}
+    /**
+     * Process the rest request. Using the channel to send a response, or the filter chain to continue processing the request.
+     */
+    public abstract void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception;
+}
+```
+原本在 2.4.2 版本中, RestFilter 是该插件的核心组件, 所有的请求都经过该过滤器, 由其中的逻辑判断是否具有访问权限; 现在该类被干掉, 我又搜不到其他类似 filter 的代替者, 这就没法操作了;
+经过一段时间的努力, 我终于在 google 和 github 的帮助下找到了解决该问题的线索, 6.2 版本其实是提供了一个类似的 API 的:
+``` java
+// public interface ActionPlugin
+
+/**
+ * Returns a function used to wrap each rest request before handling the request.
+ * Note: Only one installed plugin may implement a rest wrapper.
+ */
+default UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    return null;
+}
+```
+让插件的 main class 继承此接口, 使用 lambda 表达式十分简洁地解决问题:
+``` java
+// public class ElasticfencePlugin extends Plugin implements ActionPlugin
+
+@Override
+public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    if (isPluginDisabled()) {
+        // 透传请求
+        return (originRestHandler) -> authRestFilter.wrapNone(originRestHandler);
+    } else {
+        // 权限控制
+        return (originRestHandler) -> authRestFilter.wrap(originRestHandler);
+    }
+}
+```
+本以为搞定了 API 就万事大吉了, 然后就遇到了第二道困难: java security manager;
+换句话说, 就是基于安全考虑, 默认情况下不允许插件往任何磁盘路径写入东西, 大部分磁盘路径的内容不允许读取, 不允许发起 http 请求或 socket 连接, 不允许使用反射或者 Unsafe 类; 还有其他无数的动作限制...... 要想使用, 就必须申请权限!
+当前版本的 elasticfence 由于使用了 qconfig, 所以首先需要引入公司的 common 客户端以初始化标准 web 应用, 期间需要申请磁盘路径读写权限以及一些系统变量的读写权限; qconfig-client 本身也有定时任务发起 http 请求, 所以还需要申请 http 资源的请求权限;
+然而实际上, 申请权限却不是那么顺利: 我按照官方文档 [Help for plugin authors](https://www.elastic.co/guide/en/elasticsearch/plugins/6.2/plugin-authors.html#_java_security_permissions) 的步骤申请了对应的权限, 重启节点, 发现无济于事: 该被禁止的依然被禁止; 我对 java security manager 的机制不熟悉, google 求助但所获甚少, 按正常的思路似乎遇到了阻碍;
+&nbsp;
+根据官方的描述, 从 6.x 开始, security manager 已无法被 disable, 要想在当前版本里 run 起来, 安全机制就是绕不开的问题; 听起来似乎已经绝了, 遂内心生发出一个狠想法: 去改 elasticsearch 源码, 把 security manager 相关代码全部注释掉, 然后重新编译, 堂而皇之, 若无其事!
+想了下我们确实没有代码行为方面的安全需求, 这个 security manager 对我们而言其实是可有可无, 现在它阻碍了其他对我们很有必要的东西, 那么它就是可无的;
+不过 elasticsearch 可不是一般的 java 项目, 其体系之复杂, 依赖之错综, 让人望而生畏; 小心翼翼得 pull 下来最新的代码, checkout 到目标 tag v6.2.2, 然后傻了: gradle 下载不了任何依赖, 代码全是红色的一片;
+在网上搜了一阵子, 按部就班地操作, 还算顺利, 总算在 Intellij IDEA 里将项目正常加载起来了; 不得不感叹, 关于 elasticsearch 6.x, 即便是本地 IDE 的环境问题, 也值得写一篇文章好好总结一下;
+源码中与 java security manager 相关的代码主要有以下几个地方:
+首先是 elasticsearch 的主方法( elasticsearch 启动后执行的第一个逻辑便是设置 security manager):
+``` java
+// org.elasticsearch.bootstrap.Elasticsearch
+
+public static void main(final String[] args) throws Exception {
+    // we want the JVM to think there is a security manager installed so that if internal policy 
+    // decisions that would be based on the presence of a security manager
+    // or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
+    System.setSecurityManager(new SecurityManager() {
+        @Override
+        public void checkPermission(Permission perm) {
+            // grant all permissions so that we can later set the security manager to the one that we want
+        }
+    });
+    LogConfigurator.registerErrorListener();
+    final Elasticsearch elasticsearch = new Elasticsearch();
+    int status = main(args, elasticsearch, Terminal.DEFAULT);
+    if (status != ExitCodes.OK) {
+        exit(status);
+    }
+}
+```
+接着是 Bootstrap 类:
+``` java
+// org.elasticsearch.bootstrap.Bootstrap
+
+private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
+    ......
+    // install SM after natives, shutdown hooks, etc.
+    try {
+        Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
+    } catch (IOException | NoSuchAlgorithmException e) {
+        throw new BootstrapException(e);
+    }
+    ......
+}
+```
+最后是 BootstrapChecks 类:
+``` java
+// org.elasticsearch.bootstrap.BootstrapChecks
+
+// the list of checks to execute
+static List<BootstrapCheck> checks() {
+    final List<BootstrapCheck> checks = new ArrayList<>();
+    ......
+    checks.add(new AllPermissionCheck());
+    return Collections.unmodifiableList(checks);
+}
+
+static class AllPermissionCheck implements BootstrapCheck {
+    @Override
+    public final BootstrapCheckResult check(BootstrapContext context) {
+        if (isAllPermissionGranted()) {
+            return BootstrapCheck.BootstrapCheckResult.failure("granting the all permission effectively disables security");
+        }
+        return BootstrapCheckResult.success();
+    }
+    boolean isAllPermissionGranted() {
+        final SecurityManager sm = System.getSecurityManager();
+        assert sm != null;
+        try {
+            sm.checkPermission(new AllPermission());
+        } catch (final SecurityException e) {
+            return false;
+        }
+        return true;
+    }
+}
+```
+与 java security manager 相关的代码就在以上三个类中了; 可以发现它们都在 org.elasticsearch.bootstrap 包中;
+重新编译后, 使用新处理过的 elasticsearch, 重启节点, 加载插件, 完美启动;
+
+**(2) elasticsearch-analysis-ik** 
+(3) licence 
+(4) marvel-agent (xpack 代替) 
+**(5) repository-hdfs**
 
 ## **性能检测**
 (1) 与 2.4 的对比: index, update, query; 
@@ -413,5 +595,10 @@ kibana, xpack 的部分免费功能 (待仔细研究);
 - [Changelog](https://github.com/elastic/elasticsearch-dsl-py/blob/master/Changelog.rst)
 - [Removal of mapping types](https://www.elastic.co/guide/en/elasticsearch/reference/6.2/removal-of-types.html)
 - [Strict Content-Type Checking for Elasticsearch REST Requests](https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests)
+- [Compatibility](https://www.elastic.co/guide/en/elasticsearch/client/java-rest/6.2/java-rest-high-compatibility.html)
+- [State of the official Elasticsearch Java clients](https://www.elastic.co/blog/state-of-the-official-elasticsearch-java-clients)
 - [Elasticsearch 6 新特性与重要变更解读](http://blog.csdn.net/napoay/article/details/79135136)
- 
+- [Help for plugin authors](https://www.elastic.co/guide/en/elasticsearch/plugins/6.2/plugin-authors.html#_java_security_permissions)
+- [Intellij Idea编译Elasticsearch源码](https://elasticsearch.cn/article/338)
+- [elasticsearch: Building from Source](https://github.com/elastic/elasticsearch#building-from-source)
+
