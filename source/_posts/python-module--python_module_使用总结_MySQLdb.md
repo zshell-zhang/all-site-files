@@ -5,6 +5,7 @@ categories:
  - python
  - module
 tags:
+ - python
  - python:module
 ---
 
