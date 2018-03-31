@@ -1,19 +1,35 @@
 ---
-title: elasticsearch 6.2 升级调研
-date: 2018-02-27 22:11:48
+title: elasticsearch 6.x 升级调研报告
+date: 2018-03-24 22:11:48
 categories:
  - elasticsearch
 tags:
  - elasticsearch
 ---
 
-> todo
+> 关于 elasticsearch, 吐槽最多的就是其前后版本的兼容性问题; 在任何一个上规模的系统体系里, 要将使用中的 elasticsearch 提升一个 major 版本是一件非常有挑战性的事情; 为了迎接这一挑战, 公司专门抽调人力资源作前期调研, 故为此文以记之;
+在这篇文章中, 我从 客户端, 索引创建, query dsl, search api, plugins, 监控体系等多方面讨论了从 2.4.2 版本迁移到 6.2.2 版本的一系列可能遇到的兼容性问题及解决方案;
+希望能给各位读者带来工作上的帮助!
 
 <!--more-->
 
 ------
 
+**万字长文, 高能预警! 如只希望了解最终结论, 请点击:** *[本文总结](#本文总结);*
+&nbsp;
+间歇断续, 历时余月, 本文终于迎来了收尾;
+这篇文章缘起于部门自建 elasticsearch 集群的一个线上故障, 这是我们技术 TL 在 elastic 论坛的提问: [ES consume high cpu with threadlocal](https://discuss.elastic.co/t/es-consume-high-cpu-with-threadlocal/117402); 随着业务规模的扩大, 业务数据的积累, 我们意识到当前 2.4.2 版本的 elasticsearch 已经满足不了我们的需求, 此刻亟需升级我们的集群; 比较之后, 我们打算将 6.2.2 版本作为升级的目标, 并着手开始调研; 本文便是该升级调研的一个总结报告;
+相比于公司内部发表的版本, 本篇博客脱去了所有涉及公司的敏感信息, 并在开篇第一节补充介绍了一下我们使用 elasticsearch 的方式, 以方便外部读者更好得理解本文的其余部分内容;
+
 ## **客户端兼容性问题**
+### **巨轮转向的前提: es-adapter**
+我相信, 搞过 elasticsearch major 版本升级的人都对 elastic 公司深有体会: 从不按牌理出牌, 一个毫不妥协的技术理想主义者, 在其世界里根本没有兼容性这个词; 对于这样的公司做出的产品, 升级必定是一个痛苦的过程;
+如果请求 elasticsearch 的代码逻辑散落在部门众多业务线的众多系统里, 要推动他们修改代码势必比登天还难: 因为这个过程对他们的 PKI 没有任何帮助, 只会挤占他们的工时, 增加他们的额外负担和 "无效" 工作量, 他们一定不会积极配合, 我们将无法推动进展;
+还好部门的 VP 有技术远见,在各系统建立之初, 就定下了访问 elasticsearch 的规范: 禁止各系统自己主动连接 elasticsearch, 必须统一由专门的系统代理, 负责语法校验, 行为规范, 请求监控, 以及统一的调优, 这个系统被命名为 es-adapter;
+当然, es-adapter 系统设计的早期也有一些硬伤, 并直接诱发了一个严重的线上故障: [apache httpclient 初始化参数设置总结](); 那次事故之后, 甚至有技术 TL 开始怀疑 es-adapter 成为了当前体系的瓶颈, 需要评估有无必要废弃该系统; 但是船大掉头难, 整改谈何容易? 最后还是老老实实完善了 es-adapter 的逻辑继续使用;
+有的时候 es-adapter 也会做一些语法兼容性的逻辑, 比如之前从 1.7.3 升级到 2.4.2 的时候, 部分 dsl 语法的改动就完全在 es-adapter 上代理了, 对业务线无感知, 轻描淡写地升级了一个 major 版本; 尽管这么做带来了一些技术债务, 但确实为有限时间内的快速升级提供了可能性; 在后面的时间, 业务线可以慢慢地迭代版本, 逐渐适配新 elasticsearch 版本的 api, 偿还债务; 正所谓: 万事之先, 圆方门户; 虽覆能复, 不失其度;
+不得不说, 当系统规模与复杂度发展到了一个 "船大难掉头" 的程度时, es-adapter 就像是《三体》中描述的 "水滴" 一样, 带领整个体系从一个更高的维度完成 "平滑" 转向; 没有 es-adapter, 升级 elasticsearch 到 6.2.2 就无从谈起; 只不过这次的情形相比上一次有些难看, 没法做到完全透明了, es-adapter 部分特有的逻辑设计在这次升级可能会栽一个跟头, 具体的内容请见下文: [search api 的兼容性](#search-api-的兼容性);
+
 ### **升级过渡期 client 端的技术选型**
 关于 elasticsearch java 官方客户端, 除了 TransportClient 之外, 最近又新出了一个 HighLevelClient, 而且官方准备在接下来的一两个 major 版本中, 让 HighLevelClient 逐步取代 TransportClient, 官方原话是这样描述的:
 > We plan on deprecating the `TransportClient` in Elasticsearch 7.0 and removing it completely in 8.0.
@@ -54,7 +70,7 @@ tags:
 
 ### **HighLevelClient 的使用注意事项**
 **(1) 初始化的重要选项**
-HighLevelClient 底层基于 apache httpcomponents, 一提起这个老牌 http client, 就不得不提起与它相关的几个关键 settings:
+HighLevelClient 底层基于 org.apache.httpcomponents, 一提起这个老牌 http client, 就不得不提起与它相关的几个关键 settings:
 
 1. `CONNECTION_REQUEST_TIMEOUT`
 2. `CONNECT_TIMEOUT`
@@ -66,7 +82,8 @@ HighLevelClient 底层基于 apache httpcomponents, 一提起这个老牌 http c
 ``` java
 List<HttpHost> httpHosts = Lists.newArrayListWithExpectedSize(serverNum);
 serverAddressList.forEach((server) -> httpHosts.add(new HttpHost(server.getAddr(), server.getPort(), "http")));
-private RestHighLevelClient highLevelClient = new RestHighLevelClient(RestClient.builder(httpHosts.toArray(new HttpHost[0]))
+private RestHighLevelClient highLevelClient = new RestHighLevelClient(
+        RestClient.builder(httpHosts.toArray(new HttpHost[0]))
         // timeout settings
         .setRequestConfigCallback((callback) -> callback
                 .setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
@@ -83,7 +100,7 @@ private RestHighLevelClient highLevelClient = new RestHighLevelClient(RestClient
 **(2) request timeout 的设置**
 对于 index, update, delete, bulk, query 这几个请求动作, HighLevelClient 与它们相关的 Request 类都提供了 timeout 设置, 都比较方便; 但是, 偏偏 get 与 multiGet 请求没有提供设置 timeout 的地方;
 这就有点麻烦了, get 与 multiGet 是重要的请求动作, 绝对不能没有 timeout 机制: 之前遇到过的几次惨痛故障, 都无一例外强调了合理设置 timeout 的重要性;
-那么, 这种就只能自己动手了, 还好 HighLevelClient 对每种请求动作都提供了 async 的 API, 我可以结合 CountDownLatch 的超时机制, 来实现间接的 timeout 控制;
+那么, 这种就只能自己动手了, 还好 HighLevelClient 对每种请求动作都提供了 async 的 api, 我可以结合 CountDownLatch 的超时机制, 来实现间接的 timeout 控制;
 首先需要定义一个 response 容器来盛装异步回调里拿到的 result:
 ``` java
 class ResponseWrapper<T> {
@@ -123,7 +140,7 @@ else { 处理 wrapper.getResponse() 的返回结果 }
 ```
 
 **(3) query 请求 dsl 的传参问题**
-es-adapter 之前查询相关的请求动作, 对业务线提供的接口是基于 Search API 设计的, 就是下面这样的模型:
+es-adapter 之前查询相关的请求动作, 对业务线提供的接口是基于 search api 设计的, 就是下面这样的模型:
 ``` javascript
 {
     "query": { ... },
@@ -151,6 +168,8 @@ SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parse
 HighLevelClient 的使用基本上要解决的就是以上几个问题了;
 
 ## **语法兼容性问题**
+语法兼容性问题是一个比较基础的问题, 这一节主要讨论三个方面: 索引创建的兼容性, query dsl 的兼容性, search api 的兼容性;
+
 ### **索引创建的兼容性**
 es 6.2 在索引创建方面, 有如下几点与 es 2.4 有区别:
 &nbsp;
@@ -267,7 +286,7 @@ elasticsearch 放弃 _all 这个概念, 是希望让 query_string 时能够更�
 ```
 这样, 把哪些字段 merge 到一起, merge 到哪个字段里, 都是可以自定义的, 而不用束缚在固定的 _all 字段里;
 &nbsp;
-*无论如何, _all 与 include_in_all 的废弃对我们来说影响都是很小的, 首先我们就很少有全文检索的场景, 其次我们也没有使用 query_string 查询 merged_fields 的需求, 甚至将 _all 禁用已被列入了我们索引创建的规范之中;*
+*无论如何, _all 与 include_in_all 的废弃对我们来说影响都是很小的, 首先我们就很少有全文检索的场景, 其次我们也没有使用 query_string 查询 merged fields 的需求, 甚至将 _all 禁用已被列入了我们索引创建的规范之中;*
 
 **(4) 史诗级大改变: string 类型被废弃**
 string 类型被废弃, 代替者是分词的 `text` 类型和不分词的 `keyword` 类型;
@@ -306,6 +325,7 @@ string 类型被废弃, 代替者是分词的 `text` 类型和不分词的 `keyw
 
 ### **query dsl 的兼容性**
 索引创建的兼容性调研只能算是一个热身, 按照以往经验, elasticsearch 一旦有 major 版本升级, query dsl 变动都不会小, 这次也不例外;
+
 **(1) filtered query 被废弃**
 其实早在 2.0 版本时, filtered query 就已经被 deprecated 了, 5.0 就彻底废弃了; 这的确是一个不太优雅的设计, 在本来就很复杂的 query dsl 中又增添了一个绕人的概念;
 filtered query 原本的设计初衷是想在一个 query context 中引入一个 filter context 作前置过滤: 
@@ -313,7 +333,23 @@ filtered query 原本的设计初衷是想在一个 query context 中引入一�
 
 然而, filtered query 这样的命名方式, 让人怎么也联系不了上面的描述; 其实要实现上述功能, elasticsearch 有另一个更加清晰的语法: bool query, 详细的内容在接下来的第 (2) 小节介绍;
 &nbsp;
-*从目前 es-adapter 的使用情况来看, 依然有请求会使用到 filtered query; 好在 filtered 关键字一般出现在 dsl 的最外层, 比较固定, 这块可以在 es-adapter 中代理修改;*
+*从目前 es-adapter 的使用情况来看, 依然有请求会使用到 filtered query; 好在 filtered 关键字一般出现在 dsl 的最外层, 比较固定, 这块可以在 es-adapter 中代理修改:*
+``` javascript
+{
+  // 在 es-adapter 中删除 filtered
+  "filtered": {
+    // 如果有 filter, 将其移动到 query -> bool 中
+    "filter": { ... },
+    "query": {
+      "bool": {
+        "must": { ... },
+        "should": { ... },
+        "must_not": { ... }
+      }
+    }
+  }
+}
+```
 
 **(2) filter context 被限定在 bool query 中使用**
 如下所示, 以下 dsl 是 elasticsearch 6.x 中能够使用 filter context 的唯一方式, 用于取代第 (1) 小节所说的 filtered query:
@@ -321,11 +357,12 @@ filtered query 原本的设计初衷是想在一个 query context 中引入一�
 {
   "query": {
     "bool": {
-      "must": {...},
-      "should": {...},
-      "must_not": {...},
       // 引入 filter context 作前置过滤
-      "filter": {...}
+      "filter": { ... },
+      
+      "must": { ... },
+      "should": { ... },
+      "must_not": { ... }
     }
   }
 }
@@ -364,22 +401,50 @@ GET /_search
 *所以, 关于 missing , 必须由业务线自己来修改相关代码了;*
 
 ### **search api 的兼容性**
-**(1) search_type scan 被废弃**
-关于这一点, 我们早就作好了心理准备; 早在从 1.7.3 升 2.4.2 的时候, 我们就已经发现 scan 这种 search type 被 deprecated 了, 从 5.0 开始, 就要被彻底废弃了;
-从类别上说, scan 只不过是 scroll 操作中的一种特例: 不作 sort, 不作 fetch 后的 merge; 从执行效果上看, scan 相比 scroll 可能稍微快一些, 并会获得 shards_num * target_size 数量的结果集大小; 除此之外, 没有其他什么区别;
+相比于 query dsl 的巨大改变, search api 总体上延续了之前的设计, 仅有部分 search type 被废弃; 感觉上比较温和, 可惜却因为 es-adapter 一些没有前瞻性的设计而闪着了腰;
+
+**(1) search_type `scan` 被废弃**
+关于这一点, 我们早就作好了心理准备; 早在从 1.7.3 升 2.4.2 的时候, 我们就已经发现 scan 这种 search type 被 deprecated 了, 从 5.0 开始, 就要被彻底废弃了, 所以 es-adapter 同期开始支持真正的 scroll 请求 (可惜业务线使用得不多);
+从类别上说, scan 只不过是 scroll 操作中的一种特例: 不作 sort, fetch 后不作 merge; 从执行效果上看, scan 相比 scroll 可能稍微快一些, 并会获得 shards_num \* target_size 数量的结果集大小; 除此之外, 没有其他什么区别;
 &nbsp;
-*所以说, 这个改变对我们来说只能算是尘埃落定, 并不会带来多大的影响;*
-*我唯一要做的就是在 es-adapter 中忽略业务线传过来的 scan type, 然后把它当作一个普通的 scroll 操作去处理;*
-*唯一需要注意的是, 在实际上已经是使用 scroll 的情况下, 最终返回的文档数量就是 query 时指定的 size, 而不是再乘以 shards_num, 某些具体的业务可能会对返回的结果数量比较敏感;*
+*然而, 理论上很简单, 实际上却很棘手: 这源于 es-adapter 一个比较糟糕的设计:*
+``` java
+/* es-adapter 的查询服务 */
+public ResponseContent query(RequestParam param) {
+    if (param.getSearchType().equals(SearchType.SCAN) || param.getUseScroll()) {
+        return scroll(param);
+    } else if (param.getSearchType().equals(SearchType.COUNT)) {
+        return count(param);
+    } else {
+        return normallyQuery(param);
+    }
+}
+```
+*可以发现, 在当前的逻辑中, 业务线的 scan 请求, 是通过调用 query 方法并设置 search type 为 scan 来实现的; 这里的 scroll(param) 方法是个 private 方法; 当 es-adapter 升级 api 到 6.2.2 后, 就识别不了 scan 了;*
+*这就要求 es-adapter 修改 scroll(param) 方法为 public, 然后各业务线直接调 scroll(param) 方法; 这需要一定的修改工作量;*
 
-**(2) search_type count 被废弃**
-*从目前的情况看, 应该没有*
+**(2) search_type `count` 被废弃**
+count 与 scan 一样早在 2.4.2 时就已经被 deprecated 了, 不过之前我们对 count 的关注度没有 scan 高; 在 2.4.2 版本 SearchType 类的源码注释中, elastic 官方是这么说明的:
+``` java
+/**
+ * Only counts the results, will still execute aggregations and the like.
+ * @deprecated does not any improvements compared to {@link #QUERY_THEN_FETCH} with a `size` of {@code 0}
+ */
+@Deprecated
+COUNT((byte) 5);
+```
+对于 es-adapter 来说, 修改方法很明显, 正如注释中所述: 该怎么请求就怎么请求, 拿到 response 后从里面取出 totalHits 就行了;
+&nbsp;
+*可惜, 如上一节所述, 同样由于 es-adapter 中糟糕的逻辑, 业务线需要通过调用 query 方法并设置 search type 为 count 来实现 count 请求; 现在没有 count 这个 search type 了, 需要业务线改成直接调用 count(param) 方法;*
 
-**(3) search_type query_and_fetch / dfs_query_and_fetch 被废弃**
+**(3) search_type `query_and_fetch` / `dfs_query_and_fetch` 被废弃**
+这两个 search type 被 deprecated 的时间比 scan 和 count 稍晚一些; 好在这两个 search type 比较冷门, 业务线知道的不多, 所以用的也不多; 后来只要发现有人这么用, 我们就会告诉他们这个 api 已经不推荐了;
+&nbsp;
+*所以, 相比 scan 和 count, query_and_fetch 和 dfs_query_and_fetch 被废弃的影响十分有限;*
 
 ## **底层索引数据兼容性问题**
 根据官方文档, 6.x 版本可以兼容访问 5.x 创建的索引; 5.x 版本可以兼容 2.x 创建的索引;
-背后其实是 Lucene 版本的兼容性问题, 目前我们 2.4.2 版本的集群使用的 Lucene 版本是 5.5.2, 而 6.2.2 版本的 elasticsearch 使用的 Lucene 版本是 7.2.1;
+背后其实是 lucene 版本的兼容性问题, 目前我们 2.4.2 版本的集群使用的 lucene 版本是 5.5.2, 而 6.2.2 版本的 elasticsearch 使用的 lucene 版本是 7.2.1;
 
 * 由于主机资源有限, 没办法再弄出一组机器来搭建新集群, 我首先想到的是: 能否以 5.x 作跳板, 先原地升级到 5.x, 再从 5.x 升到 6.x;
 但是看了官方文档, 这个想法是不可行的: [Reindex before upgrading](https://www.elastic.co/guide/en/elasticsearch/reference/6.2/reindex-upgrade.html ); elasticsearch 只认索引是在哪个版本的集群中创建的, 并不关心这个索引现在在哪个集群; 一个索引在 2.4.2 集群中创建, 现在运行在 5.x 版本的 elasticsearch 中, 这时候将 5.x 的集群升级到 6.x, 该索引是无法在 6.x 中访问的;
@@ -389,7 +454,7 @@ A snapshot of an index created in 2.x can be restored to 5.x.
 A snapshot of an index created in 1.x can be restored to 2.x.
 
 * 接着我又想到了 elasticsearch 自带的 reindex 模块; reindex 模块也是官方文档推荐的从 5.x 升 6.x 时的索引升级方法; 经过 beta 测试, 我发现这个方法基本可行, 速度也尚可, 唯一需要注意的就是在 elasticsearch.yml 配置文件中要加上一段配置: `reindex.remote.whitelist: oldhost:port` 以允许连接远程主机作 reindex;
-以下是 _reindex API 的使用方法:
+以下是 _reindex api 的使用方法:
 ``` javascript
 POST _reindex
 {
@@ -449,8 +514,8 @@ server {
 **(1) elasticfence**
 这个插件追踪溯源的话是这个项目: [elasticfence](https://github.com/elasticfence/elasticsearch-http-user-auth); 后来由于各种各样的需求, 我们在这个插件的基础之上, 作了大量的修改; 到目前为止, 跑在我们节点上的该插件代码已经与 github 上的原项目代码没有半毛钱关系了;
 当前我们版本的 elasticfence 最大的功能是整合了 qconfig, 使得其拥有热配置及时生效的能力; 然而, 也正是这个功能, 成了该插件本次兼容 elasticsearch 6.x 的噩梦;
-首先第一道困难是, 2.4 与 6.2 版本的插件 API 彻底大改变; 但这与接下来的困难相比, 也只不过是热个身而已;
-当我把 pom.xml 中的 elasticsearch 版本从 2.4.2 改成 6.2.2 时, 意料之中地发现代码红了一片, 不过仔细一看, 发现 API 变化的尺度之大, 还是超出了我的预计: RestFilter 接口直接被干掉了;
+首先第一道困难是, 2.4 与 6.2 版本的插件 api 彻底大改变; 但这与接下来的困难相比, 也只不过是热个身而已;
+当我把 pom.xml 中的 elasticsearch 版本从 2.4.2 改成 6.2.2 时, 意料之中地发现代码红了一片, 不过仔细一看, 发现 api 变化的尺度之大, 还是超出了我的预计: RestFilter 接口直接被干掉了;
 ``` java
 /**
  * A filter allowing to filter rest operations.
@@ -466,7 +531,7 @@ public abstract class RestFilter implements Closeable {
 }
 ```
 原本在 2.4.2 版本中, RestFilter 是该插件的核心组件, 所有的请求都经过该过滤器, 由其中的逻辑判断是否具有访问权限; 现在该类被干掉, 我又搜不到其他类似 filter 的代替者, 这就没法操作了;
-经过一段时间的努力, 我终于在 google 和 github 的帮助下找到了解决该问题的线索, 6.2 版本其实是提供了一个类似的 API 的:
+经过一段时间的努力, 我终于在 google 和 github 的帮助下找到了解决该问题的线索, 6.2 版本其实是提供了一个类似的 api 的:
 ``` java
 // public interface ActionPlugin
 
@@ -493,7 +558,7 @@ public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadCont
     }
 }
 ```
-本以为搞定了 API 就万事大吉了, 然后就遇到了第二道困难: java security manager;
+本以为搞定了 api 就万事大吉了, 然后就遇到了第二道困难: java security manager;
 换句话说, 就是基于安全考虑, 默认情况下不允许插件往任何磁盘路径写入东西, 大部分磁盘路径的内容不允许读取, 不允许发起 http 请求或 socket 连接, 不允许使用反射或者 Unsafe 类; 还有其他无数的动作限制...... 要想使用, 就必须申请权限!
 当前版本的 elasticfence 由于使用了 qconfig, 所以首先需要引入公司的 common 客户端以初始化标准 web 应用, 期间需要申请磁盘路径读写权限以及一些系统变量的读写权限; qconfig-client 本身也有定时任务发起 http 请求, 所以还需要申请 http 资源的请求权限;
 然而实际上, 申请权限却不是那么顺利: 我按照官方文档 [Help for plugin authors](https://www.elastic.co/guide/en/elasticsearch/plugins/6.2/plugin-authors.html#_java_security_permissions) 的步骤申请了对应的权限, 重启节点, 发现无济于事: 该被禁止的依然被禁止; 我对 java security manager 的机制不熟悉, google 求助但所获甚少, 按正常的思路似乎遇到了阻碍;
@@ -583,9 +648,9 @@ static class AllPermissionCheck implements BootstrapCheck {
 在 2.4.2 中, 还有两个使用到的插件, marvel 和 licence; 在 6.x 中, 这些插件已经被 x-pack 取代了, 下一节将会介绍, 此处不再赘述;
 
 ## **监控体系**
-### **基于 rest API + graphite + grafana 的方案**
-基于 elasticsearch 的 rest API, 我们可以使用脚本定时收集到集群内各种状态的指标; 使用 graphite 收集 elasticsearch 汇报的指标, 并以 grafana 作为前端展示; 使用以上开源框架自建的监控系统, 已经成为我们最监控 elasticsearch 集群健康状况的主力工具;
-将收集指标的脚本部署到 elasticsearch 6.x 测试节点, 发现一些 rest API 有了变化:
+### **基于 rest api + graphite + grafana 的方案**
+基于 elasticsearch 的 rest api, 我们可以使用脚本定时收集到集群内各种状态的指标; 使用 graphite 收集 elasticsearch 汇报的指标, 并以 grafana 作为前端展示; 使用以上开源框架自建的监控系统, 已经成为我们最监控 elasticsearch 集群健康状况的主力工具;
+将收集指标的脚本部署到 elasticsearch 6.x 测试节点, 发现一些 rest api 有了变化:
 ``` bash
 # 2.4.2 的 _stats api 可以加一个不痛不痒的 all 参数
 _nodes/stats?all=true
@@ -602,12 +667,33 @@ all 参数在 6.x 中已经不支持了, 不过这是个不痛不痒的参数, �
 我分别在 elasticsearch node 与 kibana 上安装了 x-pack 套件, 剔除了需要付费的 security, watcher, ml, graph 模块;
 可以看到, monitoring 部分相比以前的 marvel, 总体结构上没有太大变化:
 ![x-pack-monitor](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/elasticsearch/elasticsearch_6.2_升级调研纪实/x-pack-monitor.png)
-另外, 在 x-pack 免费的功能里, 还有一个比较实用的工具: dev-tools; 这里面有两个子栏目: search profiler 和 grok debugger; 其中, search profiler 在之前的 search api 基础上实现了可视化的诊断, 相比之前在 response json 里面分析查询性能瓶颈, 这样的工具带来了巨大的直观性:
+另外, 在 x-pack 免费的功能里, 还有一个比较实用的工具: dev-tools; 这里面有两个子栏目: search profiler 和 grok debugger; 其中, search profiler 在之前的 search api 基础上实现了可视化的诊断, 相比之前在 response json 字符串里面分析查询性能瓶颈, 这样的工具带来了巨大的直观性:
 ![x-pack-search-profiler](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/elasticsearch/elasticsearch_6.2_升级调研纪实/x-pack-search-profiler.png)
 除了以上免费功能, kibana 本身还有最基础的 Discover 和 Visualize 数据可视化功能, 只不过各业务线都习惯于使用 head 工具来访问线上数据, 并且 kibana 的该部分功能较之以前无显著变化, 此处便不再详述;
 以上便是 elasticsearch 6.x 下 x-pack 最常见的使用情况;
 
 ## **本文总结**
+本文主要讨论当前生产环境下从 elasticsearch 2.4.2 升级成 6.2.2 的可行性与兼容性问题;
+**首先是客户端兼容性问题:**
+elastic 公司新推出的 `RestHighLevelClient` 从 http 层面最大限度得屏蔽了各版本间的差异, 使得跨版本调用成为了可能; 使用 6.2.2 的 `RestHighLevelClient` 可以正常访问 2.4.2 的集群, 这为集群升级带来了便利;
+**其次是语法兼容性问题:**
+此处仍需细分为三个方面: **create index**, **query dsl** 和 **search api** ;
+**create index** 方面, 其他的零碎变化都显得不痛不痒, 对我们的影响微乎其微, 唯一一个显著的大改变就是废弃了 `string` 类型, 改而细分出两个司职更明确的类型: `text` 与 `keyword`, 分别对应于分词和不分词的情形; 这个大改变需要我们对现有所有的索引作一次大整改;
+**query dsl** 方面, 对我们的影响也在控制范围之内: 只有 `missing` 语句被废弃需要业务线作一定的修改, 其他的大多可以由 es-adapter 代理兼容;
+**search api** 方面, 可能影响就比较大了: `scan` 和 `count` 两种 search type 被废弃, 并在 es-adapter 糟糕的设计之下, 影响被放大, 需要麻烦各业务线配合修改;
+**然后是索引数据迁移兼容性问题:**
+经过多方测试, 发现只有两种方法可以在我们这种跨两个 major 版本的情况下迁移索引数据: reindex 模块和 es-spark 工具; 好在这两种方法 (由其是后者) 之前就是我们主要的索引迁移工具;
+**接着是工具兼容性问题:**
+经过不断探索与变通, 最后 `cerebro`, `elasticsearch-head`, `elasticfence`, `elasticsearch-analysis-ik`, `curator` 等一系列原有生产环境下的 elasticsearch 工具 (插件) 都 "顺利" 实现了对 6.2.2 版本的兼容;
+**最后是监控体系兼容性问题:**
+得益于 6.x 版本 rest api 对先前的延续, 之前生产环境使用的基于一系列开源方案的自建监控系统, 在 6.x 下依然做到了正常运转;
+另外, 从 5.0 开始横空出世的 x-pack, 也在本次调研中被部署测试; 其中 monitoring, search-profiler 等功能都展示出了其实用的价值;
+
+&nbsp;
+**以上便是本文的全部内容;**
+
+## **站内相关文章**
+- [apache httpclient 初始化参数设置总结]()
 
 ## **参考链接**
 - [Changelog](https://github.com/elastic/elasticsearch-dsl-py/blob/master/Changelog.rst)
