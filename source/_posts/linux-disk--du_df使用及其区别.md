@@ -3,7 +3,7 @@ title: du / df 使用及其区别
 date: 2017-04-07 22:58:04
 categories:
  - linux
- - other
+ - disk
 tags:
  - linux:disk
 ---
