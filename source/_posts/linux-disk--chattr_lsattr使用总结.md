@@ -6,6 +6,7 @@ categories:
  - disk
 tags:
  - linux:disk
+ - 系统安全
 ---
 
 > 对于在机器上操作的人来说, 如果有 sudo 权限, 那 chattr 根本就不是事, 这也不是 chattr 的意义所在;
@@ -50,6 +51,8 @@ lsattr 命令用于查看文件被 chattr 设置的情况;
 ```
 可以发现, 有的时候 lsattr 所展示的文件属性掩码中, 有一个 `e`, 这在 chattr 的 manual 文档里是这么说的:
 > The `e` attribute indicates that the file is using extents for mapping the blocks on disk. It may not be removed using chattr(1).
+
+所以说, 对 chattr 来说, 这个掩码并不意味着什么;
 
 ### **常用的情景**
 对于生产环境中的机器, 有如下一些重要文件一般会将其用 chattr 设为不可修改, 不可删除:

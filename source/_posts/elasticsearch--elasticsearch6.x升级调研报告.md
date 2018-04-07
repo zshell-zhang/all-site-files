@@ -5,10 +5,11 @@ categories:
  - elasticsearch
 tags:
  - elasticsearch
+ - httpcomponents
 ---
 
-> 关于 elasticsearch, 吐槽最多的就是其前后版本的兼容性问题; 在任何一个上规模的系统体系里, 要将使用中的 elasticsearch 提升一个 major 版本是一件非常有挑战性的事情; 为了迎接这一挑战, 公司专门抽调人力资源作前期调研, 故为此文以记之;
-在这篇文章中, 我从 客户端, 索引创建, query dsl, search api, plugins, 监控体系等多方面讨论了从 2.4.2 版本迁移到 6.2.2 版本的一系列可能遇到的兼容性问题及解决方案;
+> 关于 elasticsearch, 吐槽最多的就是其前后版本的兼容性问题; 在任何一个上规模的系统体系里, 要将部署在生产环境中的 elasticsearch 提升一个 major 版本是一件非常有挑战性的事情; 为了迎接这一挑战, 作者所在部门专门抽调人力资源作前期调研, 故为此文以记之;
+在这篇文章中, 我将从 client 端, 索引创建, query dsl, search api, plugins, 监控体系等多方面讨论了从 2.4.2 版本迁移到 6.2.2 版本的一系列可能遇到的兼容性问题及解决方案;
 希望能给各位读者带来工作上的帮助!
 
 <!--more-->
@@ -17,15 +18,17 @@ tags:
 
 **万字长文, 高能预警! 如只希望了解最终结论, 请点击:** *[本文总结](#本文总结);*
 &nbsp;
-间歇断续, 历时余月, 本文终于迎来了收尾;
-这篇文章缘起于部门自建 elasticsearch 集群的一个线上故障, 这是我们技术 TL 在 elastic 论坛的提问: [ES consume high cpu with threadlocal](https://discuss.elastic.co/t/es-consume-high-cpu-with-threadlocal/117402); 随着业务规模的扩大, 业务数据的积累, 我们意识到当前 2.4.2 版本的 elasticsearch 已经满足不了我们的需求, 此刻亟需升级我们的集群; 比较之后, 我们打算将 6.2.2 版本作为升级的目标, 并着手开始调研; 本文便是该升级调研的一个总结报告;
-相比于公司内部发表的版本, 本篇博客脱去了所有涉及公司的敏感信息, 并在开篇第一节补充介绍了一下我们使用 elasticsearch 的方式, 以方便外部读者更好得理解本文的其余部分内容;
+戊戌年春, 历时余月, 本文终于迎来了收尾;
+这篇文章缘起于部门自建 elasticsearch 集群的一个线上故障, 这是我们技术 TL 在 elastic 论坛的提问: [ES consume high cpu with threadlocal](https://discuss.elastic.co/t/es-consume-high-cpu-with-threadlocal/117402); 随着业务规模的扩大, 业务数据的积累, 我们意识到当前 2.4.2 版本的 elasticsearch 已经满足不了我们的需求, 此刻亟需升级我们的集群; 比较之后, 我们打算将 6.2.2 版本作为升级的目标, 并着手开始调研; 本文即是该升级调研的一个总结报告;
+相比于公司内部发表的版本, 本篇博客对所有涉及公司内部的信息作了脱敏处理, 并在开篇第一节补充介绍了一下我们使用 elasticsearch 的方式, 以方便外部读者更好得理解本文的其余部分内容;
 
 ## **客户端兼容性问题**
+在这篇文章的编排结构中, 我将客户端兼容性问题摆在了第一的位置: 因为不管 rest api 如何变化, 或者如何不变, 都只能算是 "术"; 我们真正跑在生产环境中的系统, 使用的是 elasticsearch java client; client 端的基础兼容性问题才是根本之 "道";
+
 ### **巨轮转向的前提: es-adapter**
 我相信, 搞过 elasticsearch major 版本升级的人都对 elastic 公司深有体会: 从不按牌理出牌, 一个毫不妥协的技术理想主义者, 在其世界里根本没有兼容性这个词; 对于这样的公司做出的产品, 升级必定是一个痛苦的过程;
 如果请求 elasticsearch 的代码逻辑散落在部门众多业务线的众多系统里, 要推动他们修改代码势必比登天还难: 因为这个过程对他们的 PKI 没有任何帮助, 只会挤占他们的工时, 增加他们的额外负担和 "无效" 工作量, 他们一定不会积极配合, 我们将无法推动进展;
-还好部门的 VP 有技术远见,在各系统建立之初, 就定下了访问 elasticsearch 的规范: 禁止各系统自己主动连接 elasticsearch, 必须统一由专门的系统代理, 负责语法校验, 行为规范, 请求监控, 以及统一的调优, 这个系统被命名为 es-adapter;
+还好部门的 VP 有技术远见,在各系统建立之初, 就定下了访问 elasticsearch 的规范: 禁止各系统自己主动连接 elasticsearch, 必须统一由专门的系统代理, 负责语法校验, 行为规范, 请求监控, 以及统一的调优; 其余的系统必须通过调用其暴露出去的 dubbo 接口间接访问 elasticsearch; 这个系统被命名为 es-adapter;
 当然, es-adapter 系统设计的早期也有一些硬伤, 并直接诱发了一个严重的线上故障: [apache httpclient 初始化参数设置总结](); 那次事故之后, 甚至有技术 TL 开始怀疑 es-adapter 成为了当前体系的瓶颈, 需要评估有无必要废弃该系统; 但是船大掉头难, 整改谈何容易? 最后还是老老实实完善了 es-adapter 的逻辑继续使用;
 有的时候 es-adapter 也会做一些语法兼容性的逻辑, 比如之前从 1.7.3 升级到 2.4.2 的时候, 部分 dsl 语法的改动就完全在 es-adapter 上代理了, 对业务线无感知, 轻描淡写地升级了一个 major 版本; 尽管这么做带来了一些技术债务, 但确实为有限时间内的快速升级提供了可能性; 在后面的时间, 业务线可以慢慢地迭代版本, 逐渐适配新 elasticsearch 版本的 api, 偿还债务; 正所谓: 万事之先, 圆方门户; 虽覆能复, 不失其度;
 不得不说, 当系统规模与复杂度发展到了一个 "船大难掉头" 的程度时, es-adapter 就像是《三体》中描述的 "水滴" 一样, 带领整个体系从一个更高的维度完成 "平滑" 转向; 没有 es-adapter, 升级 elasticsearch 到 6.2.2 就无从谈起; 只不过这次的情形相比上一次有些难看, 没法做到完全透明了, es-adapter 部分特有的逻辑设计在这次升级可能会栽一个跟头, 具体的内容请见下文: [search api 的兼容性](#search-api-的兼容性);
@@ -59,7 +62,7 @@ tags:
 ```
 后两者没的说, 都是新引入的坐标; 但是第一个坐标, elasticsearch 的核心 package, 就无法避免与现在 es-adapter 引的 2.4.2 版本冲突了;
 之前从 1.7.3 升 2.4.2 时, 由于 TransportClient 跨 major 版本不兼容, 导致 es-adapter 无法用同一个 TransportClient 访问两个集群, 只能苦苦寻找有没有 rest 的解决方案, 后来总算找到一个: Jest (github 地址: [searchbox-io/Jest](https://github.com/searchbox-io/Jest)), 基本囊括了 elasticsearch 各种类别的请求功能;
-但这还是架不住各业务线种种小众的需求(比如 nested_filter, function_score 等等), 以致于对两个不同版本的集群, es-adapter 不能完美提供一致的功能;
+但这还是架不住各业务线种种小众的需求(比如 nested_filter, function_score, aggregations 等等), 以致于对两个不同版本的集群, es-adapter 不能完美提供一致的功能;
 这一次升 6.2.2, 又遇到了和上一次差不多的问题, 不过一个很大的不同是: 现在官方推荐的 HighLevelClient 是 rest client, 所以很有必要尝试验证下其向下兼容的能力;
 我们经过 demo 快速测试验证, 初步得出了结论:
 &nbsp;
@@ -165,10 +168,92 @@ XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser
 
 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
 ```
-HighLevelClient 的使用基本上要解决的就是以上几个问题了;
+
+**(4) 无厘头的 `adjust_pure_negative`**
+整个 HighLevelClient 中, 最让人感到费解的一个东西就是一个神秘的属性:
+``` java
+/* org.elasticsearch.index.query.BoolQueryBuilder */
+private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
+private boolean adjustPureNegative = ADJUST_PURE_NEGATIVE_DEFAULT;
+```
+先是看官方文档, 搜不到;
+然后搜 google, 就找到这么一个稍微相关一点的帖子: [What does "adjust_pure_negative" flag do?](https://discuss.elastic.co/t/what-does-adjust-pure-negative-flag-do/92348), 而其给出的唯一回复是 "**You can ignore it**";
+实在搜不到有效的信息, 我只好去扒源码; 然而, 除了如上所述的 BoolQueryBuilder 中的这坨, 再加上一些测试类, 就再也没在其他地方看到与 `adjust_pure_negative` 相关的逻辑了;
+也许真的如 elastic 讨论组中所说的 *You can ignore it?* 但是现在有一个问题让我无法忽略它: 这个属性无法被 2.4.2 的 elasticsearch 识别, 但在 6.2.2 的 elasticsearch 中, 各个 QueryBuilder 的 toString() 方法会自动将其带上:
+``` javascript
+{
+  "query": {
+    "bool": {
+      "must": { ... },
+      "should": { ... },
+      "must_not": { ... },
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  }
+}
+```
+在上一节中提到, es-adapter 接受业务线传来的 query dsl str, 使用 6.2.2 的 elasticsearch 便会将上述语句传给 es-adapter; 如果其访问的索引已经迁移到 6.2.2 新集群, 那么该语句没问题; 但如果其访问的索引还未来得及迁移到新集群, es-adapter 会将该请求路由到旧的 2.4.2 集群, 接着便会发生语法解析异常;
+&nbsp;
+*这意味着, 在某个系统所需要访问的所有索引迁移到 6.2.2 新集群之前, 其 maven 依赖的 elasticsearch 版本, 不能提前升级到 6.2.2, 以阻止 adjust_pure_negative 的生成;*
+*当然考虑到 major 版本升级所带来的语法规则的巨变已被 es-adapter 缓冲掉了绝大部分, 我相信各业务线也不希望把 elasticsearch 的 maven 版本给直接升上去的; 毕竟那意味着代码将红成一大片, 要花费大量的精力修改代码, 这等于把 es-adapter 原本要替其做的事, 提前自己给办了;*
+
+**(5) 其他小众的需求**
+以上展示的是业务线普遍会遇到的情况, 然后还有两个比较小众的需求, 在个别系统中会使用到,  也是上面所提到的 nested_filter 和 aggregations;
+关于 nested_filter 还稍顺利些, api 有一些变化但是新的 api 有新的解决方案:
+``` java
+// 6.2.2 版本: 构造一个 携带 nested_filter 的 sort
+private SortBuilder buildNestedSort(NestedSort nestedSort) {
+    QueryBuilder termFilter = QueryBuilders.termsQuery(nestedSort.getTermField(), nestedSort.getTermValue());
+    return SortBuilders.fieldSort(nestedSort.getSortName())
+            .setNestedSort(new NestedSortBuilder(nestedSort.getNestedPath()).setFilter(termFilter))
+            .order(nestedSort.getOrder())
+            .sortMode(SortMode.fromString(nestedSort.getSortMode()))
+            .missing(nestedSort.getMissing());
+}
+```
+只不过这种顺利是建立在之前的不顺利基础上的: org.elasticsearch.search.sort.SortBuilders 没有实现 java.io.Serializable 接口, 各业务线的系统没法通过 dubbo 接口把参数传给我, 所以不得不自定义了上面的 NestedSort 类用于盛装 nested sort filter 的相关参数:
+``` java
+public class NestedSort implements Serializable {
+    private String sortName; // 排序用的字段名
+    private SortOrder order = SortOrder.ASC;
+    private String missing; // _first/_last,如果指定的字段不存在的排序逻辑
+    private String sortMode; // max/min/sum/avg
+    private String nestedPath;
+    private String termField; // filter对应的 term 的field,现在只支持terms;
+    private Collection<String> termValue;
+}
+```
+好在 nested_filter 相关参数类别可以固化, 比较稳定, 自定义类也算是个解决方案了;
+&nbsp;
+但是另一个小众需求就没那么省事了: aggregations; 之前 2.4.2 的 agg api 中, 有一个通用的方法:
+``` java
+public SearchRequestBuilder setAggregations(byte[] aggregations) {
+    sourceBuilder().aggregations(aggregations);
+    return this;
+}
+```
+elasticsearch 聚合的 api 比较丰富自由, 而上面方法中的 aggregations 参数是以字节的形式传过来的, 所以业务线可以自由发挥, 不受 es-adapter 的约束, 但可惜这个方法在 6.2.2 版本中取消了;
+这样一来不得不回到束缚之中, 针对不同的聚合类型作各自的处理了; 可惜各个聚合类型依然没有实现 java.io.Serializable 接口, 所以还是得自定义类型去盛装参数了; 比如以下是针对分位数的聚合:
+``` java
+public class PercentileAggregation implements Serializable {
+    private String aggName;
+    private String aggField;
+    private double[] percents;
+}
+```
+``` java
+PercentilesAggregationBuilder percentileAggBuilder = AggregationBuilders.percentiles(param.getPercentileAggregation().getAggName())
+        .field(param.getPercentileAggregation().getAggField())
+        .percentiles(param.getPercentileAggregation().getPercents());
+searchSourceBuilder.aggregation(percentileAggBuilder)
+```
+其他的聚合类型不再一一列举; 关于 aggregations 的 api 变化着实比较大, 好在使用它的系统比较少, 推动其修改逻辑阻力亦不是很大;
+&nbsp;
+HighLevelClient 的使用基本上要解决的就是以上几个问题了; 解决了客户端的问题, 就是解决了 "道" 的问题, 剩下的 "术" 的问题, 都已不是主要矛盾了;
 
 ## **语法兼容性问题**
-语法兼容性问题是一个比较基础的问题, 这一节主要讨论三个方面: 索引创建的兼容性, query dsl 的兼容性, search api 的兼容性;
+语法兼容性问题便是上文所提及 "术" 的问题的主要表现形式; 这一节主要讨论三个方面: 索引创建的兼容性, query dsl 的兼容性, search api 的兼容性;
 
 ### **索引创建的兼容性**
 es 6.2 在索引创建方面, 有如下几点与 es 2.4 有区别:
@@ -207,7 +292,7 @@ es 6.2 在索引创建方面, 有如下几点与 es 2.4 有区别:
     }
 }
 ```
-这算是一个规范化, 这些字段原本就不该自己定义, 之前我们是复制的时候图省事, 懒得删掉, 现在不行了;
+*这算是一个规范化, 这些字段原本就不该自己定义, 之前我们是复制的时候图省事, 懒得删掉, 现在不行了;*
 &nbsp;
 **然后是 mappings 中的区别;**
 &nbsp;
@@ -437,7 +522,7 @@ COUNT((byte) 5);
 &nbsp;
 *可惜, 如上一节所述, 同样由于 es-adapter 中糟糕的逻辑, 业务线需要通过调用 query 方法并设置 search type 为 count 来实现 count 请求; 现在没有 count 这个 search type 了, 需要业务线改成直接调用 count(param) 方法;*
 
-**(3) search_type `query_and_fetch` / `dfs_query_and_fetch` 被废弃**
+**(3) search_type `query_and_fetch` 被 deprecated, `dfs_query_and_fetch` 被废弃**
 这两个 search type 被 deprecated 的时间比 scan 和 count 稍晚一些; 好在这两个 search type 比较冷门, 业务线知道的不多, 所以用的也不多; 后来只要发现有人这么用, 我们就会告诉他们这个 api 已经不推荐了;
 &nbsp;
 *所以, 相比 scan 和 count, query_and_fetch 和 dfs_query_and_fetch 被废弃的影响十分有限;*
@@ -638,7 +723,7 @@ static class AllPermissionCheck implements BootstrapCheck {
 }
 ```
 与 java security manager 相关的代码就在以上三个类中了; 可以发现它们都在 org.elasticsearch.bootstrap 包中;
-重新编译后, 使用新处理过的 elasticsearch, 重启节点, 加载插件, 完美启动;
+重新编译后, 使用新处理过的 elasticsearch, 重启节点, 加载插件, 完美启动; 尽管这个问题暂时解决了, 但总是 "不太光彩"; 如果有人知道如何通过常规方法解决 security manager 的问题, 还请不吝赐教;
 
 **(2) elasticsearch-analysis-ik** 
 这个插件没的说, 作为唯一一个在 elastic 公司任职的中国人, [medcl](https://github.com/medcl) 一定会在新版本发布第一时间更新 [elasticsearch-analysis-ik](https://github.com/medcl/elasticsearch-analysis-ik), 与公司共进退;
@@ -649,15 +734,26 @@ static class AllPermissionCheck implements BootstrapCheck {
 
 ## **监控体系**
 ### **基于 rest api + graphite + grafana 的方案**
-基于 elasticsearch 的 rest api, 我们可以使用脚本定时收集到集群内各种状态的指标; 使用 graphite 收集 elasticsearch 汇报的指标, 并以 grafana 作为前端展示; 使用以上开源框架自建的监控系统, 已经成为我们最监控 elasticsearch 集群健康状况的主力工具;
-将收集指标的脚本部署到 elasticsearch 6.x 测试节点, 发现一些 rest api 有了变化:
+基于 elasticsearch 的 rest api, 我们可以使用脚本定时收集到集群内各种状态的指标; 使用 graphite 收集 elasticsearch 汇报的指标, 并以 grafana 作为前端展示; 使用以上开源框架自建的监控系统, 已经成为我们监控 elasticsearch 集群健康状况的主力工具 (这篇文章详细介绍了 elasticsearch 各种 rest api 收集到的指标以及将其可视化的方法: [使用 rest api 可视化监控 elasticsearch 集群]());
+将收集指标的脚本部署到 elasticsearch 6.x 测试节点, 发现 rest api 有了一些变化;
+首先是 rest api 调用的参数的细微变化:
 ``` bash
 # 2.4.2 的 _stats api 可以加一个不痛不痒的 all 参数
 _nodes/stats?all=true
 _stats?all=true
 ```
 all 参数在 6.x 中已经不支持了, 不过这是个不痛不痒的参数, 加与不加对结果的输出似没有任何影响;
-其余的 api 都没有什么变化, 测试比较顺利; 
+其余的 api 在调用的路径和参数上都没有什么变化, 比较顺利;
+然后是调用 api 返回的内容有一些细微的变化:
+``` bash
+# 2.4.2 的 load 指标
+$node_name.os.load_avergae
+# 6.2.2 的 load 指标
+$node_name.os.cpu.load_average.1m
+$node_name.os.cpu.load_average.5m
+$node_name.os.cpu.load_average.15m
+```
+6.2.2 的机器 load 指标收集, 随系统细分为了 1min, 5min 和 15min 三种, 也算是更精致了;
 
 ### **elastic 官方组件 x-pack**
 在 x-pack 诞生之前, elastic 官方提供了如下几个辅助工具: kibana, shield, marvel, watcher, 分别用于数据可视化, 权限控制, 性能监控和系统报警; 功能很强大, 可惜除了基础功能外, 进阶功能都要收费;
@@ -673,9 +769,9 @@ all 参数在 6.x 中已经不支持了, 不过这是个不痛不痒的参数, �
 以上便是 elasticsearch 6.x 下 x-pack 最常见的使用情况;
 
 ## **本文总结**
-本文主要讨论当前生产环境下从 elasticsearch 2.4.2 升级成 6.2.2 的可行性与兼容性问题;
+本文主要讨论当前生产环境下从 elasticsearch 2.4.2 升级到 6.2.2 的可行性与兼容性问题;
 **首先是客户端兼容性问题:**
-elastic 公司新推出的 `RestHighLevelClient` 从 http 层面最大限度得屏蔽了各版本间的差异, 使得跨版本调用成为了可能; 使用 6.2.2 的 `RestHighLevelClient` 可以正常访问 2.4.2 的集群, 这为集群升级带来了便利;
+elastic 公司新推出的 `RestHighLevelClient` 从 http 层面最大限度得屏蔽了各版本间的差异, 使得跨版本调用成为了可能; 使用 6.2.2 的 `RestHighLevelClient` 可以正常访问 2.4.2 的集群, 这为集群升级带来了便利; 对各业务线而言, 只有有限的 (诸如 aggregations) api 被迫需要修改, 其余的都可以延续下去;
 **其次是语法兼容性问题:**
 此处仍需细分为三个方面: **create index**, **query dsl** 和 **search api** ;
 **create index** 方面, 其他的零碎变化都显得不痛不痒, 对我们的影响微乎其微, 唯一一个显著的大改变就是废弃了 `string` 类型, 改而细分出两个司职更明确的类型: `text` 与 `keyword`, 分别对应于分词和不分词的情形; 这个大改变需要我们对现有所有的索引作一次大整改;
@@ -685,8 +781,9 @@ elastic 公司新推出的 `RestHighLevelClient` 从 http 层面最大限度得�
 经过多方测试, 发现只有两种方法可以在我们这种跨两个 major 版本的情况下迁移索引数据: reindex 模块和 es-spark 工具; 好在这两种方法 (由其是后者) 之前就是我们主要的索引迁移工具;
 **接着是工具兼容性问题:**
 经过不断探索与变通, 最后 `cerebro`, `elasticsearch-head`, `elasticfence`, `elasticsearch-analysis-ik`, `curator` 等一系列原有生产环境下的 elasticsearch 工具 (插件) 都 "顺利" 实现了对 6.2.2 版本的兼容;
+这其中, `elasticfence` 实现兼容的过程比较坎坷, 甚至还重新编译了 elasticsearch 的源码才解决了 security manager 的问题; 如果以后能通过常规方式解决安全的问题, 一定还得弄回去;
 **最后是监控体系兼容性问题:**
-得益于 6.x 版本 rest api 对先前的延续, 之前生产环境使用的基于一系列开源方案的自建监控系统, 在 6.x 下依然做到了正常运转;
+得益于 6.x 版本 rest api 对先前的延续 (除了极个别 api 有细微调整之外), 之前生产环境使用的基于一系列开源方案的自建监控系统, 在 6.x 下依然做到了正常运转;
 另外, 从 5.0 开始横空出世的 x-pack, 也在本次调研中被部署测试; 其中 monitoring, search-profiler 等功能都展示出了其实用的价值;
 
 &nbsp;
@@ -694,6 +791,7 @@ elastic 公司新推出的 `RestHighLevelClient` 从 http 层面最大限度得�
 
 ## **站内相关文章**
 - [apache httpclient 初始化参数设置总结]()
+- [使用 rest api 可视化监控 elasticsearch 集群]()
 
 ## **参考链接**
 - [Changelog](https://github.com/elastic/elasticsearch-dsl-py/blob/master/Changelog.rst)
