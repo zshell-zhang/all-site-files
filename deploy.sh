@@ -7,7 +7,7 @@ random_end_date='2017-12-22'
 
 if [[ $target_commit_date = '' ]]; then
     sudo date -s $random_end_date
-    let "random_value = $RANDOM % 256"
+    let "random_value = $RANDOM % 226"
     target_commit_date=`date +%Y-%m-%d -d "$random_value days ago"`
 fi
 

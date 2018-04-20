@@ -1,5 +1,5 @@
 ---
-title: sysvinit_systemd命令使用与对比
+title: sysvinit / systemd 命令使用与对比
 date: 2017-11-12 17:18:06
 categories:
  - linux
@@ -72,9 +72,10 @@ slice unit: 进程组
 snapshot unit: systemd 快照, 可以切回某个快照
 socket unit: 进程间通信的 socket
 swap unit: swap 文件
-timer unit: 定时器
+timer unit: 定时器, 可与 crond 相对比, 可圈可点
 ```
 其中, **service unit** 在 12 类 unit 中是最主要的一类, 也是日常操作中最频繁接触的一类, 当然也是与传统的 sysvinit 可以直接比较的对象;
+另外, systemd 里另外一个比较有意思的是 timer unit, 关于此的详细内容可以参见: [systemd 的定时器功能]();
 &nbsp;
 systemd 主要涉及到的命令有: `systemctl`, `hostnamectl`, `localectl`, `timedatectl`, `loginctl`, `journalctl` 等, 其中:
 
@@ -197,7 +198,8 @@ sudo journalctl -u nagios -b  -2  # 继续往上追溯
 
 ## **站内相关文章**
 - [sysvinit/systemd/upstart 初始化过程梳理]()
-- [systemd 的配置文件整理]()
+- [systemd 的定时器功能]()
+- [systemd 相关配置文件整理]()
 - [sysvinit / systemd 日志系统的使用与对比]()
 
 ## **参考链接**
