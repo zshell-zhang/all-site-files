@@ -161,9 +161,11 @@ public class JsonUtil {
     // 方法2, 适用于泛型类型未知的通用情况
     public static <T> List<T> decodeList(String json, Class<T> clazz) throws IOException {
         try {
-            return objectMapper.readValue(json, objectMapper.getTypeFactory().constructCollectionType(List.class, clazz));
+            return objectMapper.readValue(json, objectMapper.getTypeFactory()
+                    .constructCollectionType(List.class, clazz));
         } catch (IOException e) {
-            logger.error("jackson decodeList(String, Class<T>) error, json = {}, class = {}", json, clazz.getName(), e);
+            logger.error("jackson decodeList(String, Class<T>) error, json = {}, class = {}",
+                    json, clazz.getName(), e);
             return null;
         }
     }
@@ -184,10 +186,11 @@ public class JsonUtil {
     // 方法2, 使用于泛型类型未知的通用情况
     public static <K, V> Map<K, V> decodeMap(String json, Class<K> key, Class<V> value) throws IOException {
         try {
-            return objectMapper.readValue(json, objectMapper.getTypeFactory().constructMapType(Map.class, key, value));
+            return objectMapper.readValue(json, objectMapper.getTypeFactory()
+                    .constructMapType(Map.class, key, value));
         } catch (IOException e) {
-            logger.error("jackson decodeMap(String, Class<K>, Class<V>) error, json = {}, key = {}, value = {}",
-                    json, key.getName(), value.getName(), e);
+            logger.error("jackson decodeMap(String, Class<K>, Class<V>) error, json = {}, key = {}, " +
+                    "value = {}", json, key.getName(), value.getName(), e);
             return null;
         }
     }
@@ -197,6 +200,7 @@ public class JsonUtil {
 
 ### **站内相关文章**
 - [对 jackson 浅层次的概念整理]()
+- [jackson 常用配置选项梳理]()
 
 ### **参考链接**
 - [How to serialize Joda DateTime with Jackson JSON processer](https://stackoverflow.com/questions/3269459/how-to-serialize-joda-datetime-with-jackson-json-processer)
