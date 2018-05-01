@@ -47,6 +47,7 @@ jackson-databind, jackson-core, jackson-annotations, 这三个构件对大部分
 
 ### **JsonUtil 类代码**
 本类在 static 代码块中设置了各种常用的 jackson 选项, 包括 JsonParser, SerializationFeature, DeserializationFeature, JsonInclude 等; 所有的选项上方都写明了注释, 以方便在使用时针对不同的场景作定制化的修改;
+另外有一点需要补充说明的是, 该 static 代码各配置项虽加上了注释, 但并未说明为何需要设置此选项; 相关的详细说明请参见本站另一篇文章: [jackson 常用配置选项梳理](http://zshell.cc/2017/01/21/ser_deser-jackson--jackson_常用配置选项梳理);
 ``` java
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonParser;
@@ -200,7 +201,7 @@ public class JsonUtil {
 
 ### **站内相关文章**
 - [对 jackson 浅层次的概念整理]()
-- [jackson 常用配置选项梳理]()
+- [jackson 常用配置选项梳理](http://zshell.cc/2017/01/21/ser_deser-jackson--jackson_常用配置选项梳理)
 
 ### **参考链接**
 - [How to serialize Joda DateTime with Jackson JSON processer](https://stackoverflow.com/questions/3269459/how-to-serialize-joda-datetime-with-jackson-json-processer)
