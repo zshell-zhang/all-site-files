@@ -24,14 +24,15 @@ tags:
 ### **304 Not Modified**
 此状态码需要http header的配合:
 
-### **307**
+### **307 Temporary Redirect**
 ## **4XX 客户端错误系列**
 4XX 为客户端请求错误相关的 status code;
 以下为各种 4XX status code 的含义以及可能的对应于常用 web server tomcat 或常用 web 框架 springMVC, 返回此 code 的原因;
 其中, tomcat 的版本为 7.0.47.0, springMVC 的版本为 4.1.8.RELEASE
 &nbsp;
 ### **400 Bad Request**
-一般是请求参数错误, 参数个数少了或者参数名与 api 要求不符;
+对一般的 sprinMVC 工程来说, 400 是请求参数错误, 参数个数与接口不匹配或者参数名与 api 要求不符;
+但是也有其他的情况, 比如这一个: [记一次Content-Length引发的血案](https://segmentfault.com/a/1190000011920471); 即便服务器端返回正常, 但是其给出的 response header Content-Length 是错误的, 浏览器无法正确解析, 也会返回 400;
 &nbsp;
 ### **401 Unauthorized**
 请求未认证, 如果服务端需要用户密码认证而 request 未携带相关 header 则会返回此 code;
@@ -137,16 +138,37 @@ public @interface RestController { ... }
 
 而我在更高的 spring 版本里(比如 master), jackson 的最低兼容版本已经到了 2.9; 可见, 如果项目里的 jackson 版本不能与 spring 保持同步, 便极有可能导致序列化/反序列化失败, 进而导致 406 错误;
 &nbsp;
-### **407**
+### **407 Proxy Authentication Required**
 ### **408 Request Timeout**
 ### **409 Confilct**
-### **410**
-### **411**
-### **412**
+### **410 Gone**
+### **411 Length Required**
+### **412 Precondition Failed**
 ### **413 Entity Too Large**
-### **414**
+### **414 Request-URI Too Long**
 ### **415 Not supported media type**
-### **416**
-### **417**
+### **416 Requested Range Not Satisfiable**
+### **417 Expectation Failed**
 ### **429 Too Many Requests**
+
+## **5xx 服务端系列**
+
+### **500 Internal Server Error**
+
+### **501 Implemented**
+
+### **502 Bad Gateway**
+
+### **503 Service Unavailable**
+
+### **504 Gateway Timeout**
+
+### **505 HTTP Version Not Supported**
+
+## **站内相关文章**
+- [&lt;mvc:annotation-driven/&gt; 所做事情的详细梳理]()
+
+## **参考链接**
+- [http 状态码](https://tool.lu/httpcode/)
+- [记一次Content-Length引发的血案](https://segmentfault.com/a/1190000011920471)
 
