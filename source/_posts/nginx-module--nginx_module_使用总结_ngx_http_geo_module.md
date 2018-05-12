@@ -5,6 +5,7 @@ categories:
  - nginx
  - module
 tags:
+ - nginx
  - nginx:module
 ---
 
