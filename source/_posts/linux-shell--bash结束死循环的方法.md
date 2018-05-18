@@ -15,6 +15,11 @@ categories:
 
 <!--more-->
 
+------
+
+一次偶然的机会, 我不小心写了一个 bash 脚本, 在一个 while 1 循环里调用一个命令; 结果执行的时候发现, 我按下 ctrl + c, 只结束了循环内的命令, 但结束不了 while 循环本身, 造成了该脚本停不下来了, 最后不得不打开另一个终端 kill 掉它;
+这个事情突然引起了我的兴趣, 于是我总结了一下 bash 结束 while 1 死循环的几种方法;
+
 ### **方法1: 监听命令返回值**
 根据 [GNU 相关规范](http://www.gnu.org/software/bash/manual/bashref.html#Exit-Status), 如果一个进程是由于响应信号 signal 而终止, 其返回码必须是 128 + signal_number;
 那么, 可以通过判断其返回码 $? 是否大于 128 而判断 COMMAND 是否响应了信号;
@@ -64,7 +69,7 @@ done
 # ^Z
 [1]+  Stopped                 COMMAND
 
-# 1 是挂起进程的作业号(job number), kill [job_number] 会向该作业发送 SIGtERM 信号
+# 1 是挂起进程的作业号(job number), kill [job_number] 会向该作业发送 SIGTERM 信号
 kill %1
 # 发送 SIGTERM 信号给最近一次被挂起的进程
 kill %%
