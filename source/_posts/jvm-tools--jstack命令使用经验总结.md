@@ -1,6 +1,6 @@
 ---
-title: jstack命令使用经验总结
-date: 2017-10-24 17:11:51
+title: jstack 命令使用经验总结
+date: 2017-09-24 17:11:51
 categories:
  - jvm
  - tools
@@ -151,16 +151,26 @@ Found 1 deadlock.
 然而后来 Doug Lea 发布了 java.util.concurrent 包, 当谈及 java 的锁, 除了内置锁之外还有了基于 AbstractOwnableSynchronizer 的各种形式; 由于是新事物, 彼时 jdk5 的 jstack 没有及时提供对以 AQS 构建的同步工具的死锁检测功能, 直到 jdk6 才完善了相关支持;
 
 ## **常见 java 进程的 jstack dump 特征**
-首先, 不管是什么类型的 java 应用, 有一些通用的线程是都会存在的:
+首先, 不管是什么类型的 java 应用, 有一些通常都会存在的线程:
+
 **VM Thread 与 VM Periodic Task Thread**
 虚拟机线程, 属于 native thread, 凌驾与其他用户线程之上;
 VM Periodic Task Thread 通常用于虚拟机作 sampling/profiling, 收集系统运行信息, 为 JIT 优化作决策依据;
 
-**主线程 main**
-通常 main 线程是 jvm 创建的 1 号用户线程, 有了 main 之后才有了后来的其他用户线程;
+**C1 / C2 CompilerThread**
+虚拟机的 JIT 及时编译器线程:
+``` c
+"C1 CompilerThread2" #10 daemon prio=9 os_prio=0 tid=0x00007feb34114000 nid=0x18b2 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+"C2 CompilerThread1" #9 daemon prio=9 os_prio=0 tid=0x00007feb34112000 nid=0x18b1 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+"C2 CompilerThread0" #8 daemon prio=9 os_prio=0 tid=0x00007feb3410f800 nid=0x18b0 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+```
 
 **Reference Handler 线程与 Finalizer 线程**
 这两个线程用于虚拟机处理 override 了 Object.finalize() 方法的实例, 对实例回收前作最后的判决;
+Reference Handler 线程用于将目标对象放入 reference queue:
 ``` c
 "Reference Handler" #2 daemon prio=10 os_prio=0 tid=0x00007f91e007f000 nid=0xa80 in Object.wait() [0x...]
    java.lang.Thread.State: WAITING (on object monitor)
@@ -169,6 +179,7 @@ VM Periodic Task Thread 通常用于虚拟机作 sampling/profiling, 收集系�
         at java.lang.ref.Reference$ReferenceHandler.run(Reference.java:157)
         - locked <0x00000000c0495140> (a java.lang.ref.Reference$Lock)
 ```
+Finalizer 线程用于从 reference queue 中取出对象以执行其 finalize 方法:
 ``` c
 "Finalizer" #3 daemon prio=8 os_prio=0 tid=0x00007f91e0081000 nid=0xa81 in Object.wait() [0x...]
    java.lang.Thread.State: WAITING (on object monitor)
@@ -180,7 +191,32 @@ VM Periodic Task Thread 通常用于虚拟机作 sampling/profiling, 收集系�
 ```
 
 **gc 线程**
-这块对于不同的 gc 收集器有各自不同的线程状态;
+这块对于不同的 gc 收集器选型有各自不同的线程状态 (线程数视 cpu 核心数而定);
+``` bash
+# Parallel Scavenge
+"GC task thread#0 (ParallelGC)" os_prio=0 tid=0x00007f91e0021000 nid=0xa7a runnable 
+"GC task thread#1 (ParallelGC)" os_prio=0 tid=0x00007f91e0023000 nid=0xa7b runnable 
+```
+``` bash
+# ParNew
+"Gang worker#0 (Parallel GC Threads)" os_prio=0 tid=0x00007feb3401e800 nid=0x18a4 runnable 
+"Gang worker#1 (Parallel GC Threads)" os_prio=0 tid=0x00007feb34020000 nid=0x18a5 runnable 
+```
+``` bash
+# CMS
+"Concurrent Mark-Sweep GC Thread" os_prio=0 tid=0x00007feb34066800 nid=0x18a8 runnable
+```
+``` bash
+# G1
+"G1 Main Concurrent Mark GC Thread" os_prio=0 tid=0x00007fc2f4091800 nid=0x1805e runnable
+
+"Gang worker#0 (G1 Parallel Marking Threads)" os_prio=0 tid=0x00007fc2f4093800 nid=0x1805f runnable 
+"Gang worker#1 (G1 Parallel Marking Threads)" os_prio=0 tid=0x00007fc2f4095800 nid=0x18060 runnable
+
+"G1 Concurrent Refinement Thread#0" os_prio=0 tid=0x00007fc2f4079000 nid=0x1805d runnable 
+"G1 Concurrent Refinement Thread#1" os_prio=0 tid=0x00007fc2f4077000 nid=0x1805c runnable
+```
+以上便是 java 进程里通常都会存在的线程;
 
 ### **纯 tomcat 容器**
 
