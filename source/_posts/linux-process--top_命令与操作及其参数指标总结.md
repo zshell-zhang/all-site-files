@@ -60,7 +60,7 @@ KiB Swap:  5999612 total,  4462904 free,  1536708 used.  3654256 avail Mem
 * user time 时间占比大, 说明用户空间内的 cpu 计算比较多, 这属于最常见的状态;
 * system time 时间占比大, 说明 system call 系统调用比较多, 计算多在内核空间发生;
 这往往不是一个好的兆头, 如果伴随着系统的性能异常, 需要使用 strace 等命令追踪系统调用的状态;
-如果一个正常情况下 system time 很少的进程, 突然莫名其妙得 user time 与 system time 的差距达到了量级, 那么有相当的概率, 系统内核发生了性能问题, 比如缺页 (page fault);
+如果一个正常情况下 system time 很少的进程, 突然莫名其妙得 user time 与 system time 的差距达到了量级, 那么有相当的概率, 系统内核发生了性能问题, 比如进程上下文切换 (context switch) 频繁以及缺页 (page fault);
 如果一个进程每次启动都会造成很高的 system time, 那么很可能是进程内部的逻辑在执行某些耗时的 system call, 这一点在 [火丁笔记的总结](https://huoding.com/tag/strace) 里十分有代表性;
 * idle time 时间占比很大, 说明 cpu 很闲, 时间多消耗在了闲置进程上;
 * wait time 时间占比很大, 这十有八九是 cpu 等待 IO 设备的时间过长, 比较常见的是磁盘 IO 出现了吞吐瓶颈, 导致 cpu wait; 当然也有可能是网络适配器的带宽被打满了;

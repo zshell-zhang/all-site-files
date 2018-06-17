@@ -75,7 +75,7 @@ linux 默认的 ulimit 限制, 是出于安全考虑, 设置的有些保守; 实
 3. open files -> 65536
 4. stack size -> unlimit
 ```
-对于 max locked memory, elasticsearch.yml 本身有一个配置项 `bootstrap.mlockall`/`bootstrap.memory_lock` = true, 其背后实现就是通过类似于 ulimit -l unlimit 的方法完成的; 只是, elasticsearch 试图自己主动改变该配置能生效的前提, 是 ulimit 配置文件里要允许其这样设置, 具体的逻辑请看本文下下节: [ulimit 的永久修改](#ulimit-的永久修改);
+对于 max locked memory, elasticsearch.yml 本身有一个配置项 `bootstrap.mlockall`/`bootstrap.memory_lock` = true, 其背后实现就是通过类似于 ulimit -l unlimit 的方法完成的; 只是, elasticsearch 试图自己主动改变该配置能生效的前提, 是 ulimit 配置文件里要允许其这样设置, 具体的逻辑请看本文下下节: [#ulimit 的永久修改](#ulimit-的永久修改);
 
 &nbsp;
 另外, 还有其他的一些场景, 可能需要调整其他参数以作优化, 此处不一而论;

@@ -10,7 +10,7 @@ categories:
 
 > linux 中有很多实用的工具, 采用了这样一种工作方式:
 定时执行(1/s, 1/3s 等)一次指定逻辑, 当用户按下 ctrl + c 发出 SIGINT 信号时, 结束进程; 如果接收不到 SIGINT/SIGTERM 等信号, 进程则会一直执行下去;
-类似的工具包括 ioutil, jmap 等;
+类似的工具包括 iostat, dstat, jstat 等;
 本文整理了实现上述逻辑的一些典型方法;
 
 <!--more-->

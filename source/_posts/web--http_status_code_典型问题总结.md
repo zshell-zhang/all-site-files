@@ -17,22 +17,34 @@ tags:
 
 ------
 
+由于 http status code 众多, 而本人经验有限, 故不可能将所有问题覆盖全面; 另外, RFC 标准里定义的各种 status code 规范, 未必在各种主流的 web 容器内作具体实现;
+所以本文先将各种见过的没见过的 status code 列下来, 然后查漏补缺, 以后如果遇到相关问题, 就及时更新本文, 记录下来, 而没遇到过的 status code, 暂且先放着占个坑位吧;
+
 ## **3XX 重定向系列**
 ### **301 Moved Permanently**
 ### **302 Found**
 ### **303 See Other**
 ### **304 Not Modified**
-此状态码需要http header的配合:
+304 未修改 发生的过程一般如下:
 
+1. 某个 response header 中携带了一个头: `last-modified`, 其值为该请求内容最后更新的时间;
+2. 当客户端再次请求同样的资源时, 将从上次请求的缓存中查询 `last-modified` 的值, 并在当前的 request header 中附加一个 `if-modified-since` 头, value 同 `last-modified`;
+3. 当 server 端发现 request header 中携带了 `if-modified-since`,       会判断其值是否与当前请求资源的修改时间比落后, 如果是则返回该资源的最新内容, 并将 `last-modified` 更新为当前时间, status code 为 200; 若不落后, 就会返回 304, 告知客户端原缓存资源可以继续使用;
+
+正常情况下如果是在 chrome 里访问发生了 304, 那么 ctrl + F5 强刷页面可以让 request header 中不带上 `if-modified-since`, 从而避免了返回 304;
+还有一种特殊的情况也会遇到 304: http get 方法在 body 中携带数据;
+野路子走多了就成了正道, 理论上 get 方法在 body 携带数据是符合 RFC 标准的, 但多半会被 server 端半路截断, 不分青红皂白就认为你请求了相同的内容, 直接返回 304;
+所以为了避免此类问题, 凡是需要携带数据的访问: 要么用 post, 要么 get 时将 data 追加在 url 后面;
+&nbsp;
 ### **307 Temporary Redirect**
 ## **4XX 客户端错误系列**
 4XX 为客户端请求错误相关的 status code;
 以下为各种 4XX status code 的含义以及可能的对应于常用 web server tomcat 或常用 web 框架 springMVC, 返回此 code 的原因;
-其中, tomcat 的版本为 7.0.47.0, springMVC 的版本为 4.1.8.RELEASE
+其中, tomcat 的版本为 7.0.47.0, springMVC 的版本为 4.1.8.RELEASE;
+另外, 本节内容也包含一些非标准的 nginx 自定义 error code, 我会单独注明;
 &nbsp;
 ### **400 Bad Request**
 对一般的 sprinMVC 工程来说, 400 是请求参数错误, 参数个数与接口不匹配或者参数名与 api 要求不符;
-但是也有其他的情况, 比如这一个: [记一次Content-Length引发的血案](https://segmentfault.com/a/1190000011920471); 即便服务器端返回正常, 但是其给出的 response header Content-Length 是错误的, 浏览器无法正确解析, 也会返回 400;
 &nbsp;
 ### **401 Unauthorized**
 请求未认证, 如果服务端需要用户密码认证而 request 未携带相关 header 则会返回此 code;
@@ -149,7 +161,15 @@ public @interface RestController { ... }
 ### **415 Not supported media type**
 ### **416 Requested Range Not Satisfiable**
 ### **417 Expectation Failed**
+### **428 Precondition Required**
 ### **429 Too Many Requests**
+### **431 Request Header Fields Too Large**
+&nbsp;
+### **499 client has closed connection (nginx 自定义 code)**
+当客户端访问 nginx 代理的域名, 如果其设置的 timeout 时间比较短, 小于 nginx 在该域名的 server 作用域下设置的 proxy_xxx_timeout 值, 便有可能在长时间等待后主动 timeout, 断开与 nginx 的 tcp 连接;
+当 nginx 检测到客户端主动断开 tcp 连接后, 便会在日志里面记录 499 status code;
+如果客户端设置的 timeout 时间足够长, 那么应该在 nginx 设置的 proxy_xxx_timeout 时间之后, 返给客户端 504 (Gateway Timeout);
+另外, 499 还有一种情况是客户端故意将 timeout 设置的很短, 频繁访问以消耗服务器资源;
 
 ## **5xx 服务端系列**
 
@@ -165,10 +185,12 @@ public @interface RestController { ... }
 
 ### **505 HTTP Version Not Supported**
 
+### **511 Network Authentication Required**
+
 ## **站内相关文章**
 - [&lt;mvc:annotation-driven/&gt; 所做事情的详细梳理]()
 
 ## **参考链接**
 - [http 状态码](https://tool.lu/httpcode/)
 - [记一次Content-Length引发的血案](https://segmentfault.com/a/1190000011920471)
-
+- [哪些情况下会使Nginx返回HTTP CODE 499](https://segmentfault.com/q/1010000004193105)
