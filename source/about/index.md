@@ -20,11 +20,11 @@ date: 2016-07-05 21:11:04
 
 **手机** : 18513585440
 
-**邮箱** : zshell.zhang@qunar.com  
+**邮箱** : zhangzhi@weidian.com  
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;xaaservice@gmail.com
 
 ## **我的职业状态**
 
 **2016.06**: 毕业;
 **2016.07 - 2018.06**: 去哪儿网 dev;
-
+**2018.07 - 至今**: 微店 dev;
