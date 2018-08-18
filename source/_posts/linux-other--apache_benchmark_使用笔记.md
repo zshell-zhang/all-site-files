@@ -147,7 +147,7 @@ apr_pollset_poll: The timeout specified has expired (70007)
 但是除非你修改 ab 的 source code 重新编译, 否则对于这种错误你也只能是修改 -s 增大超时时间了;
 
 ## **一个典型的使用实践**
-光说不练肯定是不行的, 这里正好有一个比较系统性地压力测试报告, 其将 apache benchmark 作为了一个主要的分析工具, 可以分享一下: [berkeley db 7.x 压力测试报告]();
+光说不练肯定是不行的, 这里正好有一个比较系统性地压力测试报告, 其将 apache benchmark 作为了一个主要的分析工具, 可以分享一下: [berkeley db 7.x 压力测试报告](http://zshell.cc/2018/08/12/linux-other--berkeley_db7.x压力测试报告);
 
 ## **其他类似工具**
 有一个与 ab 类似的开源 http 压力测试工具: [wrk - a HTTP benchmarking tool](https://github.com/wg/wrk), 在 github 上也获得了 1.7 万的 stars;
@@ -170,7 +170,7 @@ Transfer/sec:    606.33MB
 相比 ab 的报告略显简洁, 只能说是见仁见智吧;
 
 ## **站内相关文章**
-- [berkeley db 7.x 压力测试报告]()
+- [berkeley db 7.x 压力测试报告](http://zshell.cc/2018/08/12/linux-other--berkeley_db7.x压力测试报告)
 
 ## **参考链接**
 - [Package httpd-tools](https://www.mankier.com/package/httpd-tools)
