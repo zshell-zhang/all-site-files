@@ -577,10 +577,10 @@ POST _reindex
 ``` bash
 server {
    listen 80;
-   server_name esbetae.corp.11bee.com;
+   server_name esxxx.xxx.com;
 
    location / {
-      proxy_pass http://l-es5.beta.p1.11bee.com:9273/;
+      proxy_pass http://xxx.yyy.com;
 
       proxy_set_header X-Real-Scheme $scheme;
       proxy_set_header Host $host;
