@@ -202,6 +202,7 @@ public class JsonUtil {
 ### **站内相关文章**
 - [对 jackson 浅层次的概念整理]()
 - [jackson 常用配置选项梳理](http://zshell.cc/2017/01/21/ser_deser-jackson--jackson_常用配置选项梳理)
+- [jackson 注解 cheat sheet](http://zshell.cc/2017/02/15/ser_deser-jackson--jackson注解cheat_sheet)
 
 ### **参考链接**
 - [How to serialize Joda DateTime with Jackson JSON processer](https://stackoverflow.com/questions/3269459/how-to-serialize-joda-datetime-with-jackson-json-processer)
