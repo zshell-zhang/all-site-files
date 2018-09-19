@@ -15,10 +15,10 @@ tags:
 
 ------
 
-关于一些常规而必备的软件 (如 chrome, thunderbird, jetbrains 系列, jdk 等等), 本文就不再赘述了;
+关于一些常规而必备的软件 (如 chrome, thunderbird, atom/sublime, jetbrains 系列, jdk 等等), 本文就不再赘述了;
 
 ### **搞定 sudo 权限**
-说来蛋疼的是, 即便已使用 visudo 命令开启了用户的 sudo 权限, OS X 依然不允许修改系统级的目录, 这是 OS X 在 10.11 中引入的 System Integrity Protection (SIP) 特性; 我观察了一下, 差不多除了 /usr/local 这一原本就该属于用户自己管理的目录下之外, 其余的都无法操纵, 切到 root 也不行, 可以说算是一个阉割版的 admin;
+说来蛋疼的是, 即便已使用 visudo 命令开启了用户的 sudo 权限, OS X 依然不允许修改系统级的目录, 这是 OS X 在 10.11 中引入的 System Integrity Protection (SIP) 特性; 我观察了一下, 差不多除了 /usr/local 这一原本就该属于用户自己管理的目录下之外, 其余的都无法操纵, 切到 root 也不行, 可以说算是另一个阉割版的 admin;
 所以拿到本子的第一件事就应该是关闭 SIP 特性, 否则后面的操作会显得束手束脚:
 ``` bash
 # 开机, command + r 进入 rescue 模式
@@ -61,6 +61,15 @@ brew install shadowsocks-libev
 
 /usr/local/opt/shadowsocks-libev/bin/ss-local -c /etc/shadowsocks.json &
 ```
+
+### **使用解放鼠标的资源定位器**
+目前我了解到的, 这种通过快捷键召唤出来并能够根据关键字定位资源的工具, 大致有三类主流的代表: spotlight, alfred 以及 devonthink;
+
+- mac 本身自带 spotlight, 通过 command + space 召唤出来, 其特点是增量渐进式得搜索各种类型的资源, 可能包括 app, document, image 等, 一边搜索一边展示最新的结果, 速度稍慢;
+- 我在我的 mac 上安装的是第二个 alfred: alfred 通过 option + space 召唤出来, 并且默认优先搜索 app, 只有当多敲一个空格或单引号时才会搜索 document 等其他类型;
+这个设计我觉得完全不冗余, 反而是很精妙, 因为它用极其微小的代价 (一个空格/单引号) 就将最频繁与非频繁的资源类型作了隔离, 让最频繁的资源类型以极高的效率被检索到, 而不是像 spotlight 那样全盘通吃却拉低了整体搜索的响应时间;
+- 第三个是 devonthink: 这个工具的功能更加专注, 它就是一个搜索引擎, 当我们将需要被索引的文件放入 devonthink 作预处理, 往后就可以以极高的效率通过文档内容中的关键字检索到目标文档了;
+对我来说, 需要被检索的知识与文档我都用专业的云笔记去作归档与备份, 所以我并不额外需要 devonthink 这样的工具了;
 
 ### **安装 sougoupinyin 代替默认输入法**
 苹果自带的中文输入法不是很好用, 中英文切换默认使用 ctrl + space 组合, 十分不方便, 具体在哪里修改设置我也懒得看了; 此时需要下载符合国人习惯的 sougoupinyin, 当然由于搜狗对 mac 的支持比较友好, 仅需一键安装即可, 此处就不用多说了;
@@ -128,8 +137,8 @@ brew install zsh-syntax-highlighting
 |⎋			  |Escape (Esc)		   	  |
 
 ### **使用总结**
-我相信从 Windows 迁移到 mac 环境是一件阻力不大的事情, 这也是大部分人的模式, 而且这部分人群的行业分布非常广, 程序员只是其中一小部分而已; 然而对于一个长期使用 linux PC 的程序员来说, 事情就没那么富有吸引力了: mac 所能给予的生产力与效率 linux 也不遑多让, 对于开源软件有信仰的人来说, 这事甚至没有任何商量的余地;
-但其实我很清楚, 这本质上不过是一个人内心深处的偏见与执念, 长期使用 mac 的人, 让他们转投 linux 阵营也是不可能的事; 即便在 linux 业界之内, 关于 fedora, archlinux 与 ubuntu 的争论也是无休无止; 关于 OS X 其实有大量的优点在本文中完全没有被提及, 因为我觉得不值得花费时间去探索这些东西, 我在工作中所创造的价值完全存在于 linux 主机之上, 所以我亦使用 linux 作为我个人笔记本的操作系统, 借用这种方式以熟悉, 并更好得理解我的产品在生产环境下的工作原理: 这就是我无可救药的执念;
+我相信从 Windows 迁移到 mac 环境是一件阻力不大的事情, 这也是大部分人的模式, 而且这部分人群的行业分布十分广泛, 软件工程师只是其中一个子集而已; 然而对于一个长期使用 linux PC 的程序员来说, 事情就没那么富有吸引力了: mac 所能给予的生产力与效率, linux 也不遑多让, 另外对于开源软件有信仰的人来说, 这事甚至没有任何商量的余地;
+但其实我很清楚, 这本质上不过是一个人内心深处的偏见与执念, 长期使用 mac 的人, 让他们转投 linux 阵营也是不可能的事; 即便在 linux 业界之内, 关于 fedora, arch 与 ubuntu 的争论也是从未休止过; 关于 OS X 其实有大量的优点在本文中完全没有被提及, 可能是我觉得不值得花费时间去探索这些东西, 我在工作中所创造的价值完全依托于 linux 主机, 所以我亦使用 linux 作为我个人笔记本的操作系统, 借用这种方式以熟悉, 并更好得理解我的作品在生产环境下的工作原理: 兴许这就是我无可救药的执念......
 我听说阿里巴巴的办公笔记本发放的是 MacBook Pro 15', 并且强烈不建议使用自己的笔记本办公, 非要使用的话必须安装各种安全监视与审计软件, 毕竟信息安全是上市公司的头等大事; 这么说无论如何, 我都得慢慢得去适应 mac 环境下的办公模式了, 否则将来因为强烈排斥使用公司统一发放的 MacBook Pro 而拒绝了某公司的 offer, 就有点扯淡了;
 
 ### **参考链接**
@@ -139,4 +148,5 @@ brew install zsh-syntax-highlighting
 - [mac sip关闭教程 苹果MAC10.11系统关闭SIP教程](https://www.cr173.com/apple/126928_1.html)
 - [Mac下终端配置(item2 + oh-my-zsh + solarized配色方案)](http://www.cnblogs.com/weixuqin/p/7029177.html)
 - [Mac 按键标识](https://blog.csdn.net/HaoDaWang/article/details/78731098)
+- [Alfred 3.7(938) 效率神器](http://xclient.info/s/alfred.html?t=ff3019e26174ceb44f3725cfb2282663e6a53526)
 
