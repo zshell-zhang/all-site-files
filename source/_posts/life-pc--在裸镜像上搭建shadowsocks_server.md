@@ -13,6 +13,8 @@ tags:
 
 <!--more-->
 
+------
+
 ### **国外云主机搭梯子的痛点**
 要搭梯子, 得买个国外的云主机服务; 以 DigitalOcean 为例, 选择 centos 系统的 elastic compute service, 如果不使用定制的 cloud-init, DigitalOcean 创建的虚机将配置默认的 yum 源 (附带一个 digitalocean 自己的源):
 ``` bash
