@@ -3,6 +3,7 @@ title: 六年来我与自己的斗争
 date: 2018-10-07 23:44:27
 categories:
  - life
+ - thought
 tags:
  - 思考
  - 人生

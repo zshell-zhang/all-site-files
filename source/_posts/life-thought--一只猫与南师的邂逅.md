@@ -3,6 +3,7 @@ title: 一只猫与南师的邂逅
 date: 2018-10-15 11:20:35
 categories:
  - life
+ - thought
 tags:
  - 思考
  - 人生
