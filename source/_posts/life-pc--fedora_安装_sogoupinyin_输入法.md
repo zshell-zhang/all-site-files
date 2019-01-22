@@ -1,6 +1,6 @@
 ---
 title: fedora 安装 sogoupinyin 输入法
-date: 2018-07-29 23:00:24
+date: 2018-11-29 23:00:24
 categories:
  - life
  - pc
