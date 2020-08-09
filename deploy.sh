@@ -3,6 +3,7 @@
 target_commit_date=$1
 
 echo -e "\nbegin hexo content generating...\n"
+hexo clean
 hexo generate
 
 cp -a public/* .deploy_git/
