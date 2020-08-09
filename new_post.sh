@@ -25,9 +25,11 @@ function gen_categories() {
 	    result = (result"  - "categories[i]"\n");
 	}
     }'`
+    final_categories="["
     for category in ${categories_array}; do
-	final_categories=${final_categories}"  - "${category}"\n"
+	final_categories=${final_categories}${category}", "
     done
+    final_categories=${final_categories}"]"
 }
 
 # only support one tag
@@ -44,7 +46,7 @@ function gen_tag() {
             result = (result":"tags[i]);
 	}
     } END {
-        print "  - "result"\n";
+        print "  ["result"]";
     }'`
 
 }
@@ -67,7 +69,7 @@ echo -e "new post name is: source/_posts/${title}.md"
 gen_categories ${title}
 gen_tag ${title}
 
-origin_blog_content="---\ntitle: ${real_title}\ndate: `date +%Y-%m-%d\ %H:%M:%S`\ncategories:\n${final_categories}tags:\n${final_tag}\n---\n<!--more-->"
+origin_blog_content="---\ntitle: ${real_title}\ndate: `date +%Y-%m-%d\ %H:%M:%S`\ncategories: ${final_categories}\ntags:${final_tag}\n\n---\n<!--more-->"
 
 echo -e ${origin_blog_content} > source/_posts/${title}.md
 echo -e "initialization process done, now you can edit it!"
