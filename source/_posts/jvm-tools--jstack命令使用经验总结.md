@@ -29,9 +29,9 @@ sudo -u xxx jstack -l {vmid}
 
 ## **jstack 输出内容结构分析**
 首先展示几段 thread dump 的典型例子:
-正在 RUNNING 中的线程:
+正在 running/ready 中的线程:
 ``` c
-"elasticsearch[datanode-39][[xxx_index_v4][9]: Lucene Merge Thread #2403]" #45061 daemon prio=5 os_prio=0 tid=0x00007fb968213800 nid=0x249ca runnable [0x00007fb6843c2000]
+"elasticsearch[datanode-39][[xxx_idx_v1][9]: Lucene Merge Thread #2403]" #45061 daemon prio=5 os_prio=0 tid=0x00007fb968213800 nid=0x249ca runnable [0x00007fb6843c2000]
    java.lang.Thread.State: RUNNABLE
         ...
         at org.elasticsearch.index.engine.ElasticsearchConcurrentMergeScheduler.doMerge(ElasticsearchConcurrentMergeScheduler.java:94)
@@ -57,6 +57,7 @@ sudo -u xxx jstack -l {vmid}
         ...
         at java.lang.Thread.run(Thread.java:745)
 ```
+调用了 Object#wait, 等待其他线程 notify 的线程:
 ``` c
 "JFR request timer" #6 daemon prio=5 os_prio=0 tid=0x00007fc2f6b1f800 nid=0x18070 in Object.wait() [0x00007fb9aa96b000]
    java.lang.Thread.State: WAITING (on object monitor)
@@ -71,16 +72,17 @@ sudo -u xxx jstack -l {vmid}
 
 ### **输出内容的结构**
 首先还是要说一下 jstack 输出的内容结构, 就以上方举的第四个线程为例:
-以下是第一部分内容, 记录了线程的一些基本信息, 从左到右每个元素的含义已经以注释标注在元素上方; 其中比较重要的是 `nid`, 它是 java 线程与操作系统的映射, 在 linux 中它和与其对应的轻量级进程 pid 相同 (需要十六进制与十进制转换), 这将为基于 java 线程的性能诊断带来帮助, 详细请见本文后面段落 [#线程性能诊断的辅助脚本](#线程性能诊断的辅助脚本);
+以下是第一部分内容, 记录了线程的一些基本信息, 从左到右每个元素的含义已经以注释标注在元素上方; 其中比较重要的是 `nid`, 它是 java 线程与操作系统的映射, 在 linux 中它和与其对应的轻量级进程 pid 相同 (需要十六进制与十进制转换), 这将为基于 java 线程的性能诊断带来帮助, 详细请见本文后面段落 [线程性能诊断的辅助脚本](#线程性能诊断的辅助脚本);
 ``` c
-//|-----线程名------| |-线程创建次序-| |是否守护进程| |---线程优先级---| |-------线程 id-------| |-所映射的linux轻量级进程id-| |-------------线程动作--------------|
-  "JFR request timer" #6              daemon        prio=5 os_prio=0  tid=0x00007fc2f6b1f800 nid=0x18070                 in Object.wait() [0x00007fb9aa96b000]
+//|-----线程名------| |-线程创建次序-| |是否守护进程| |---线程优先级----| |-------线程 id-------| |-所映射的linux轻量级进程id-| |-------------线程动作--------------|
+  "JFR request timer" #6            daemon       prio=5 os_prio=0  tid=0x00007fc2f6b1f800  nid=0x18070               in Object.wait() [0x00007fb9aa96b000]
 ```
-以下是第二部分内容, 表示线程当前的状态;
+以下是第二部分内容, 表示线程当前的状态:
 ``` c
    java.lang.Thread.State: WAITING (on object monitor)
 ```
-以下是第三部分内容, 主要记录了线程的调用栈; 其中比较重要的是一些关键调用上的 [#动作修饰](#线程的重要调用修饰), 这些为线程死锁问题的排查提供了依据;
+关于线程状态的详细讨论, 可以参考如下链接: [java.lang.Thread 类的基础知识整理](http://zshell.cc/2020/08/09/jdk--java.lang.Thread_类的基础知识整理);
+以下是第三部分内容, 主要记录了线程的调用栈; 其中比较重要的是一些关键调用上的 [动作修饰](#线程的重要调用修饰), 这些为线程死锁问题的排查提供了依据;
 ``` c
         at java.lang.Object.wait(Native Method)
         - waiting on <0x00007fba6b50ea38> (a java.util.TaskQueue)
@@ -93,7 +95,7 @@ sudo -u xxx jstack -l {vmid}
 ### **线程的动作**
 线程动作的记录在每个 thread dump 的第一行末尾, 一般情况下可分为如下几类:
 
-1. `runnable`, 表示线程在参与 cpu 资源的竞争, 可能在被调度运行也可能在就绪等待;
+1. `runnable`, 表示线程可能在被调度运行也可能在就绪等待, [还可能是在等待磁盘 I/O 或 网络 I/O](http://zshell.cc/2020/08/09/jdk--java.lang.Thread_类的基础知识整理);
 2. `sleeping`, 表示调用了 Thread.sleep(), 线程进入休眠;
 3. `waiting for monitor entry [0x...]`, 表示线程在试图获取内置锁, 进入了等待区 Entry Set, 方括号内的地址表示线程等待的资源地址;
 4. `in Object.wait() [0x...]`, 表示线程调用了 object.wait(), 放弃了内置锁, 进入了等待区 Wait Set, 等待被唤醒, 方括号内的地址表示线程放弃的资源地址;
@@ -170,7 +172,7 @@ VM Periodic Task Thread 通常用于虚拟机作 sampling/profiling, 收集系�
 
 **Reference Handler 线程与 Finalizer 线程**
 这两个线程用于虚拟机处理 override 了 Object.finalize() 方法的实例, 对实例回收前作最后的判决;
-Reference Handler 线程用于将目标对象放入 reference queue:
+Reference Handler 线程用于将目标对象放入 ReferenceQueue:
 ``` c
 "Reference Handler" #2 daemon prio=10 os_prio=0 tid=0x00007f91e007f000 nid=0xa80 in Object.wait() [0x...]
    java.lang.Thread.State: WAITING (on object monitor)
@@ -192,21 +194,21 @@ Finalizer 线程用于从 reference queue 中取出对象以执行其 finalize �
 
 **gc 线程**
 这块对于不同的 gc 收集器选型有各自不同的线程状态 (线程数视 cpu 核心数而定);
-``` bash
+``` c
 # Parallel Scavenge
 "GC task thread#0 (ParallelGC)" os_prio=0 tid=0x00007f91e0021000 nid=0xa7a runnable 
 "GC task thread#1 (ParallelGC)" os_prio=0 tid=0x00007f91e0023000 nid=0xa7b runnable 
 ```
-``` bash
+``` c
 # ParNew
 "Gang worker#0 (Parallel GC Threads)" os_prio=0 tid=0x00007feb3401e800 nid=0x18a4 runnable 
 "Gang worker#1 (Parallel GC Threads)" os_prio=0 tid=0x00007feb34020000 nid=0x18a5 runnable 
 ```
-``` bash
+``` c
 # CMS
 "Concurrent Mark-Sweep GC Thread" os_prio=0 tid=0x00007feb34066800 nid=0x18a8 runnable
 ```
-``` bash
+``` c
 # G1
 "G1 Main Concurrent Mark GC Thread" os_prio=0 tid=0x00007fc2f4091800 nid=0x1805e runnable
 
@@ -229,7 +231,7 @@ Finalizer 线程用于从 reference queue 中取出对象以执行其 finalize �
 除了使用 jstack 之外, 还有其他一些方法可以对 java 进程作 thread dump, 如果将其封装为 http 接口, 便可以不用登陆主机, 直接在浏览器上查询 thread dump 的情况;
 **使用 jmx 的 api**
 ``` java
-public void  threadDump() {
+public void threadDump() {
    ThreadMXBean threadMxBean = ManagementFactory.getThreadMXBean();
    for (ThreadInfo threadInfo : threadMxBean.dumpAllThreads(true, true)) {
        // deal with threadInfo.toString()
@@ -253,9 +255,11 @@ public void threadDump() {
 }
 ```
 
-### **线程性能诊断的辅助脚本**
-使用 jstack 还有一个重要的功能就是分析热点线程: 找出占用 cpu 资源最高的线程;
-首先我先介绍一下手工敲命令分析的方法:
+### **线程性能诊断的工具 (方法)**
+使用 jstack 还有一个重要的功能就是分析热点线程: 找出占用 cpu 资源最高的线程; 这块内容可以分为两个部分: 手工分析与工具自动分析;
+
+**手工分析线程问题的方法**
+首先介绍一下手工敲命令分析的方法:
 
 * 使用 top 命令找出 cpu 使用率高的 thread id:
 ``` bash
@@ -267,12 +271,15 @@ top -H -p {pid}
 * 作进制转换:
 ``` bash
 # 将记录下的十进制 pid 转为十六进制
-thread_id_0x=`printf "%x" $thread_id`
-`echo "obase=16; $thread_id" | bc`
+# 方法 1
+printf "%x" $pid
+# 方法 2
+echo "obase=16; $pid" | bc
 ```
 * 由于 thread dump 中记录的每个线程的 nid 是与 linux 轻量级进程 pid 一一对应的 (只是十进制与十六进制的区别), 所以便可以拿转换得到的十六进制 thread_id_0x, 去 thread dump 中搜索对应的 nid, 定位问题线程;
 &nbsp;
 
+**脚本工具自动分析**
 下面介绍一个脚本, 其功能是: 按照 cpu 使用率从高到低排序, 打印指定 jvm 进程的前 n 个线程;
 ``` bash
 #!/bin/sh
@@ -303,10 +310,13 @@ do
     echo "$jstack_output" | grep "tid.*0x$hexapid " -A $default_stack_lines | sed -n -e '/0x'$hexapid'/,/tid/ p' | head -n -1
 done
 ```
-该脚本有多种版本, 在我司的每台主机上的指定路径下都存放了一个副本; 出于保密协议, 该脚本源码不便于公开, 上方所展示的版本是基于美团点评的技术专家王锐老师在一次 [问答分享](https://mp.weixin.qq.com/s?__biz=MjM5NjQ5MTI5OA==&mid=2651746699&idx=2&sn=c52feeab2576056e4a65e26a99702206&chksm=bd12a8c68a6521d0de81ac8ab437df1a9e702053b7840af9ac86b29979865c6fc1000286875e&mpshare=1&scene=1&srcid=0610dNiqShEJLkHiQLiIN4z1#rd) 中给出的代码所改造的;
+该脚本有多种版本, 在我司的每台主机上的指定路径下都存放了一个副本; 出于保密协议, 该脚本源码不可公开, 上方所展示的版本是基于美团点评的技术专家王锐老师在一次 [问答分享](https://mp.weixin.qq.com/s?__biz=MjM5NjQ5MTI5OA==&mid=2651746699&idx=2&sn=c52feeab2576056e4a65e26a99702206&chksm=bd12a8c68a6521d0de81ac8ab437df1a9e702053b7840af9ac86b29979865c6fc1000286875e&mpshare=1&scene=1&srcid=0610dNiqShEJLkHiQLiIN4z1#rd) 中给出的代码所改造的;
 
 ### **thread dump 可视化分析工具**
 与 [gceasy.io](gceasy.io) 一道, 同出自一家之手: [fastthread.io](http://fastthread.io);
+
+### **站内相关文章**
+- [java.lang.Thread 类的基础知识整理](http://zshell.cc/2020/08/09/jdk--java.lang.Thread_类的基础知识整理)
 
 ## **参考链接**
 - [如何使用jstack分析线程状态](https://www.jianshu.com/p/6690f7e92f27)

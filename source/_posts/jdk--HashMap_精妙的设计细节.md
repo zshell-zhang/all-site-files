@@ -277,7 +277,7 @@ final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
 ## **并发修改触发 resize 的死循环** <span id = "third">
 我们都知道 HashMap 是线程不安全的, 而且在以前我们总会被告诫: 如果对一个 HashMap 使用多线程并发操作, 轻则抛 `ConcurrentModificationException` 异常, 重则 cpu 打满, 请求无响应; 抛 `ConcurrentModificationException` 是 HashMap  对多线程操作的主动 check, 属于可控情况, 而 cpu 打满请求无响应则是某个桶内的冲突链表形成了死循环链, 程序已失控; 本节重点讨论一下 jdk 1.7 及之前版本死循环链的形成机制以及 jdk 1.8 对于此等情况的避免;
 简化起见, 设定一个 HashMap 当前的 capacity 为 2, load_factor 为 1.0, 当前已有元素 a 和元素 b 被插入, 分布如下, 显然, 其已处于扩容前的临界状态:
-![HashMap 初始状态](leanote://file/getImage?fileId=5f1fb716ab64411a9f001637)
+![HashMap 初始状态](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/HashMap初始状态.png)
 此时有两个线程 (thread1, thread2) 都想向其中插入新元素, 在插入之前首先它们需要面对的是 resize 方法; jdk 1.7 的 resize 方法中进而调用了一个关键的 transfer 方法:
 ``` java
 void transfer(Entry[] newTable, boolean rehash) {
@@ -299,14 +299,14 @@ void transfer(Entry[] newTable, boolean rehash) {
 ```
 注意到上方我注释的那行代码 `Entry<K,V> next = e.next`, 假设 thread1 执行完该行代码, 用完了自己的时间片, 线程对应的内核线程状态切换为 `READY`, 此时在 thread1 的本地工作内存里, 变量 e 被赋值为 a, 变量 next 被赋值为 b;
 cpu 将计算资源调度给 thread2, 然后 thread2 很幸运, 在它的时间片内, 它执行完了 resize 方法的所有逻辑, 并将本地工作内存内的执行结果刷回主内存, 借用上一小节的说法, 我们设定 $bin\_idx(a, n + 1) = bin\_idx(b, n + 1) = 1$, 则此时 HashMap 的状态如下:
-![thread2 执行完的状态](leanote://file/getImage?fileId=5f203345ab64411a9f001c61)
+![thread2 执行完的状态](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/thread2执行完的状态.png)
 cpu 再次将计算资源调度给 thread1, 下面好戏开场了:
 第一步: 从它被 cpu 切换前执行完的那行的下一行代码开始, 跑完 while 循环里剩余的逻辑, 此时在 thread1 的本地工作内存里, 变量 e 被赋值为 b, a.next 被赋值为 null, 此时 HashMap 状态如下:
-![thread1 执行完第一步](leanote://file/getImage?fileId=5f203345ab64411a9f001c5f)
+![thread1 执行完第一步](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/thread1执行完第一步.png)
 第二步: 假设此时 thread1 将主内存中的更新 (b.next 被赋值为 a) 及时刷回自己的本地工作内存, 又因为 `e = b != null`, 所以 while 循环再次被执行一轮, 此时在 thread1 的本地工作内存里, 变量 e 再次被赋值为 a, 此时 HashMap 状态如下:
-![thread1 执行完第二步](leanote://file/getImage?fileId=5f203345ab64411a9f001c60)
+![thread1 执行完第二步](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/thread1执行完第二步.png)
 第三步: 因为 `e = a != null`, while 循环又会被执行一轮, 然而这是异常情况, 本不应该发生; 等跑完此轮 while 循环, 在 thread1 的本地工作内存里, a.next 被赋值为 b, 此时 HashMap 即出现死循环链:
-![thread1 执行完第三步](leanote://file/getImage?fileId=5f203345ab64411a9f001c5e)
+![thread1 执行完第三步](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/thread1执行完第三步.png)
 
 以上便是 jdk 1.7 及之前版本死循环链的形成过程, 我们可以发现, 死循环产生的根本原因是 jdk 1.7 采用头插法更新链表, 导致 resize 方法将冲突链表中的元素顺序作了倒置, 当某个线程抢先将链表转置的结果刷新至另一个滞后的线程本地工作内存时, 阴差阳错的事情就发生了!
 所以 jdk 1.8 改成了尾插法, 当链表不再发生转置, 死循环链的情况自然便不复存在了; 当然这并不是说采用尾插法的 jdk 1.8 HashMap 就可以放心地使用多线程操作了:
@@ -424,12 +424,12 @@ $$f(n)=\begin{cases} \frac 1 {16}n & 0 \leq n \leq 12 \\ \frac 3 8 + \frac i {32
 
 我们应当注意, 该函数的建立与 HashMap 的负载因子 load_factor 存在密切联系, 如果有使用者自定义了 load_factor, 函数的参数会发生显著变化; 不过极少有情况需要我们去定制 load_factor, 在上一小节我们已经证明了 HashMap 默认的负载因子 0.75 是一个比较合理科学的值, 本着简化问题的目的, 我们暂且将  load_factor = 0.75 作为固定系数;
 $0 \leq n \leq 12$ 时的图像:
-![0≤n≤12的数学期望函数图像](leanote://file/getImage?fileId=5f0dbd2cab64412cdb00185f)
+![0≤n≤12的数学期望函数图像](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/0≤n≤12的数学期望函数图像.png)
 显然, $f(n)$ 在定义域上是线性递增的, 且 $0 \leq f(n) \leq \frac 3 4$;
 $n>12$ 时将 $n$ 由 $i$ 带入的图像:
-![n>12的数学期望函数图像](leanote://file/getImage?fileId=5f0dbd2cab64412cdb001860)
+![n>12的数学期望函数图像](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/n>12的数学期望函数图像.png)
 依托 HashMap 的特性, 我们发现 $n > 12$ 的情况下, 给定参数 $t$, $f(i)$ 在定义域上是线性递增的; 若将 $t$ 拓展到整个定义域, 可以绘制出完整的图像:
-![完整的数学期望函数图像](leanote://file/getImage?fileId=5f0ea0c7ab64417993000623)
+![完整的数学期望函数图像](https://raw.githubusercontent.com/zshell-zhang/static-content/master/cs/jdk/HashMap精妙的设计细节/完整的数学期望函数图像.png)
 在参数 $t$ 的每一个取值所对应的 $n$ 的取值范围上, $f(n)$ 都分别呈现出线性递增的特性, 且 $\frac 3 8 < f(n) \leq \frac 3 4$;
 至此, 关于实验次数 $n$ 的数学期望函数 $f(n)$ 的基本特征已经明晰了; 试验次数 $n$ 是随机而不可预测的, 也不存在一个可以估计的概率, 一种可能的处理方法是取平均值: 当 $0 \leq n \leq 12$ 时, $\overline{\lambda}=\frac {0+\frac 3 4}2=0.375$; 当 $n>12$ 时, $\overline{\lambda}=\frac {\frac 3 8 + \frac 3 4}2=0.5625$; 当然, 在不追求精确的场景下, 完全可以取一个范数来代表, 比如 jdk 在 HashMap 的类注释里就说明了, 在默认  load_factor = 0.75 的条件下, 他们将指定泊松分布的数学期望参数 $\lambda$ 设定为了 $0.5$:
 > Ideally, under random hashCodes, the frequency of nodes in bins follows a Poisson distribution with a parameter of about 0.5 on average for the default resizing threshold of 0.75, although with a large variance because of resizing granularity.
