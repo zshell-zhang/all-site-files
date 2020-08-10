@@ -40,7 +40,7 @@ npm install -g hexo-cli
 新建编辑文章:
 ``` bash
 > cd blogs
-# 一级目录-二级目录--标题
+# 示例: 一级目录-二级目录--标题
 > ./new_post.sh zookeeper-curator--curator_使用注意点总结
 ```
 调试预览文章:
@@ -55,4 +55,4 @@ npm install -g hexo-cli
 ```
 
 ### **参考链接**
-- [使用LaTex添加公式到Hexo博客里](http://hrworkbench.alibaba.net/workbench/entry/applyV2?formNo=11063963)
+- [使用LaTex添加公式到Hexo博客里](https://www.jianshu.com/p/68e6f82d88b7)
