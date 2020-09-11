@@ -1,4 +1,4 @@
-> 跨平台, 开箱即用!
+> 我的轻量级跨平台 hexo 博客, 按照以下操作执行, 在任何机器上开箱即用!
 
 ### **下载 node**
 https://nodejs.org/en/download/
@@ -9,27 +9,24 @@ npm install -g hexo-cli
 ```
 
 ### **拉取远程资源**
+(0) 初始化 .ssh 目录, 并加入代码托管网站的我的账户信任列表:
+``` bash
+ssh-keygen -t rsa -C "service_impl@163.com"
+```
+&nbsp;
 找到合适的位置, 作为博客数据本地存放的目录;
 (1) 拉取自动化脚本, js 框架, 文章原始内容:
 ``` bash
 > git clone https://github.com/zshell-zhang/all-site-files.git
-# 或者
-> git clone https://github.com/zshell-zhang/all-site-files.git
-
 > move all-site-files blogs
 ```
 (2) 拉取图片资源(与 blogs 同父目录):
 ``` bash
-> git clone https://github.com/zshell-zhang/static-content.git
-# 或者
 > git clone git@github.com:zshell-zhang/static-content.git
 ```
-(3) 拉取 site 呈现内容:
+(3) 拉取 site 渲染内容:
 ``` bash
 > cd blogs
-
-> git clone https://github.com/zshell-zhang/zshell-zhang.github.io.git
-# 或者
 > git clone git@github.com:zshell-zhang/zshell-zhang.github.io.git
 
 # 将 site 远程仓库改名
